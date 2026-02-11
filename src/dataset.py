@@ -43,9 +43,9 @@ class AudioSuperResDataset(Dataset):
 
         # Convert to mono if stereo (take average of channels)
         if waveform_hr.size(0) > 1:
-            waveform_hr = waveform_hr[0]+waveform_hr[1]
+            waveform_hr = waveform_hr.mean(dim=0, keepdim=True)
         if waveform_lr.size(0) > 1:
-            waveform_lr = waveform_lr[0]+waveform_lr[1]
+            waveform_lr = waveform_lr.mean(dim=0, keepdim=True)
 
         # Cut or pad to segment_length (required for batching)
         min_len = min(waveform_hr.size(1), waveform_lr.size(1))

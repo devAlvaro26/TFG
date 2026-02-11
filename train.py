@@ -64,7 +64,7 @@ def train():
             running_loss += loss.item()
         
         epoch_loss = running_loss / len(dataloader)
-        print(f"Epoch [{epoch+1}/{EPOCHS}] Loss: {epoch_loss:.4f} | LR: {optimizer.param_groups[0]['lr']:.4f}")
+        print(f"Epoch [{epoch+1}/{EPOCHS}] Loss: {epoch_loss:.6f} | LR: {optimizer.param_groups[0]['lr']:.6f}")
         
         # Update scheduler
         scheduler.step(epoch_loss)
@@ -73,10 +73,10 @@ def train():
         if epoch_loss < best_loss:
             best_loss = epoch_loss
             torch.save(model.state_dict(), 'unet_superres.pth')
-            print(f"Best model saved with loss: {best_loss:.4f}")
+            print(f"Best model saved with loss: {best_loss:.6f}")
 
     print("Training completed!")
-    print(f"Best loss reached: {best_loss:.4f}")
+    print(f"Best loss reached: {best_loss:.6f}")
 
 if __name__ == "__main__":
     train()
