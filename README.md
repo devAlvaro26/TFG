@@ -62,7 +62,7 @@ El script entrenará el modelo por un número especificado de épocas y guardar�
 
 Para probar el modelo en nuevos archivos de audio:
 
-1.  Coloca tus archivos de entrada `.wav` en `./data/test/`.
+1.  Coloca los archivos de entrada `.wav` en `./data/test/`.
 2.  Ejecuta el script de inferencia:
 
     ```bash
@@ -78,8 +78,10 @@ Para probar el modelo en nuevos archivos de audio:
 ## Requisitos
 
 *   Python 3.12.10
-*   torch 2.9.1
-*   torchaudio 2.9.1
+*   torch 2.5.1
+*   torchaudio 2.5.1
+*   torchvision 0.20.1
 *   numpy
 *   matplotlib
 *   soundfile
+*   scipy
