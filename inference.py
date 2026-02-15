@@ -1,3 +1,6 @@
+# Script para realizar inferencia
+# Este script cargará el modelo entrenado y generará resultados
+
 import os
 import shutil
 import torch
@@ -6,20 +9,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from src.model import UNetAudio
 
-# --- Configuration ---
 MODEL_PATH = 'unet_superres.pth'
 TEST_DIR = './data/test'
 OUTPUT_DIR = './results'
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-TARGET_SR = 44100       # Target sample rate (must match training)
-MAX_SECONDS = 10        # Max duration to process (avoids memory overflow)
-POOL_FACTOR = 8         # 2^3 for 3 pooling layers in UNet
+TARGET_SR = 44100       # Target sample rate
+MAX_SECONDS = 10        # Duracion a procesar
+POOL_FACTOR = 8         # 2^3 para 3 capas de pooling en UNet
 
 
 def save_audio(tensor, path, sample_rate):
     """
-    Save a waveform tensor as a 16-bit PCM WAV file.
+    Guarda un tensor de forma de onda como un archivo WAV PCM de 16 bits.
     """
     if tensor.ndim == 3:
         tensor = tensor.squeeze(0)
@@ -28,16 +30,16 @@ def save_audio(tensor, path, sample_rate):
 
 def postprocess(predicted, max_val, original_length, pad_amount):
     """
-    Post-process model output: remove batch dim, unpad, denormalize, and clamp.
+    Post-procesa la salida del modelo: elimina la dimensión del lote, elimina el relleno, desnormaliza y limita.
     """
-    # Remove batch dimension: (1, 1, L) → (1, L)
+    # Elimina la dimensión del lote: (1, 1, L) → (1, L)
     predicted = predicted.squeeze(0)
 
-    # Remove padding
+    # Elimina el relleno
     if pad_amount > 0:
         predicted = predicted[:, :original_length]
 
-    # Denormalize and clamp to valid audio range
+    # Desnormaliza y limita al rango de audio válido
     predicted = (predicted * max_val).clamp(-1.0, 1.0)
 
     return predicted
@@ -45,7 +47,7 @@ def postprocess(predicted, max_val, original_length, pad_amount):
 
 def save_waveform_plot(lr, sr, filename, sample_rate):
     """
-    Generate a comparative waveform plot (Input vs Super-Res output).
+    Genera un gráfico comparativo de forma de onda (Entrada vs Salida de Super-Res).
     """
     wave_lr = lr.squeeze().cpu().numpy()
     wave_sr = sr.squeeze().cpu().numpy()
@@ -57,14 +59,14 @@ def save_waveform_plot(lr, sr, filename, sample_rate):
 
     axs[0].plot(time_lr, wave_lr, color='steelblue', linewidth=0.5)
     axs[0].set_title("Input (Low Res)")
-    axs[0].set_ylabel("Amplitude")
+    axs[0].set_ylabel("Amplitud")
     axs[0].set_ylim(-1, 1)
     axs[0].grid(True, alpha=0.3)
 
     axs[1].plot(time_sr, wave_sr, color='darkorange', linewidth=0.5)
     axs[1].set_title("Output (Super Res)")
-    axs[1].set_ylabel("Amplitude")
-    axs[1].set_xlabel("Time (s)")
+    axs[1].set_ylabel("Amplitud")
+    axs[1].set_xlabel("Tiempo (s)")
     axs[1].set_ylim(-1, 1)
     axs[1].grid(True, alpha=0.3)
 
@@ -75,8 +77,7 @@ def save_waveform_plot(lr, sr, filename, sample_rate):
 
 def save_spectrogram_plot(lr_waveform, sr_waveform, filename, lr_sample_rate, sr_sample_rate, n_fft=1024, hop_length=256):
     """
-    Generate a comparative spectrogram plot from waveforms.
-    Each waveform can have a different sample rate.
+    Genera un gráfico comparativo de espectrograma a partir de formas de onda.
     """
     spec_transform_lr = torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length, power=2)
     spec_transform_sr = torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length, power=2)
@@ -87,7 +88,7 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, lr_sample_rate, sr
     spec_lr = spec_transform_lr(lr_wave).squeeze().numpy()
     spec_sr = spec_transform_sr(sr_wave).squeeze().numpy()
 
-    # Convert to dB scale
+    # Convierte a escala dB
     spec_lr_db = 10 * np.log10(spec_lr + 1e-10)
     spec_sr_db = 10 * np.log10(spec_sr + 1e-10)
 
@@ -102,16 +103,16 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, lr_sample_rate, sr
 
     im1 = axs[0].imshow(spec_lr_db, origin='lower', aspect='auto', cmap='magma', extent=extent_lr)
     axs[0].set_title("Input (Low Res)")
-    axs[0].set_ylabel("Frequency (Hz)")
+    axs[0].set_ylabel("Frecuencia (Hz)")
     axs[0].set_ylim(0, 20000)
-    fig.colorbar(im1, ax=axs[0], label="Amplitude (dB)")
+    fig.colorbar(im1, ax=axs[0], label="Amplitud (dB)")
 
     im2 = axs[1].imshow(spec_sr_db, origin='lower', aspect='auto', cmap='magma', extent=extent_sr)
     axs[1].set_title("Output (Super Res)")
-    axs[1].set_ylabel("Frequency (Hz)")
+    axs[1].set_ylabel("Frecuencia (Hz)")
     axs[1].set_ylim(0, 20000)
-    axs[1].set_xlabel("Time (s)")
-    fig.colorbar(im2, ax=axs[1], label="Amplitude (dB)")
+    axs[1].set_xlabel("Tiempo (s)")
+    fig.colorbar(im2, ax=axs[1], label="Amplitud (dB)")
 
     plt.tight_layout()
     plt.savefig(filename, dpi=150)
@@ -120,38 +121,38 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, lr_sample_rate, sr
 
 def inference():
     """
-    Run super-resolution inference on all .wav files in TEST_DIR.
+    Realiza inferencia de super-resolución en todos los archivos .wav en TEST_DIR.
     """
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # Load model
-    print(f"Loading model from {MODEL_PATH}...")
+    # Carga el modelo
+    print(f"Cargando modelo desde {MODEL_PATH}...")
     model = UNetAudio().to(DEVICE)
     try:
         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True))
     except FileNotFoundError:
-        print(f"Error: Model file '{MODEL_PATH}' not found.")
+        print(f"Error: No se encontró el archivo del modelo '{MODEL_PATH}'.")
         return
     model.eval()
 
-    # Discover test files
+    # Descubre los archivos de prueba
     files = [f for f in os.listdir(TEST_DIR) if f.endswith('.wav')]
     if not files:
-        print(f"No .wav files found in {TEST_DIR}")
+        print(f"No se encontraron archivos .wav en {TEST_DIR}")
         return
 
-    print(f"Found {len(files)} file(s) to process.\n")
+    print(f"Encontrados {len(files)} archivos para procesar.\n")
 
     resamplers = {}
 
     for filename in files:
         file_path = os.path.join(TEST_DIR, filename)
-        print(f"Processing: {filename}")
+        print(f"Procesando: {filename}")
 
-        # Load audio
+        # Carga el audio
         waveform, original_sr = torchaudio.load(file_path)
 
-        # Save original waveform (before resampling) for input spectrogram
+        # Guarda la forma de onda original (antes de remuestrear) para el espectrograma de entrada
         original_waveform = waveform.clone()
         if original_waveform.size(0) > 1:
             original_waveform = original_waveform.mean(dim=0, keepdim=True)
@@ -169,53 +170,51 @@ def inference():
         else:
             current_sr = original_sr
 
-        # Convert to mono
+        # Convierte a mono
         if waveform.size(0) > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
 
-        # Truncate to MAX_SECONDS
+        # Trunca a MAX_SECONDS
         max_samples = TARGET_SR * MAX_SECONDS
         if waveform.size(1) > max_samples:
             waveform = waveform[:, :max_samples]
 
-        # Pad to be divisible by POOL_FACTOR
+        # Rellena para ser divisible por POOL_FACTOR
         original_length = waveform.size(1)
         pad_amount = (POOL_FACTOR - (original_length % POOL_FACTOR)) % POOL_FACTOR
         if pad_amount > 0:
             waveform = torch.nn.functional.pad(waveform, (0, pad_amount))
 
-        # Normalize to [-1, 1]
+        # Normaliza a [-1, 1]
         max_val = waveform.abs().max() + 1e-8
         waveform_norm = waveform / max_val
 
-        # Save normalized input without padding for plotting
+        # Guarda la entrada normalizada sin relleno para la gráfica
         input_for_plot = waveform_norm[:, :original_length].clone()
 
-        # Inference
+        # Inferencia
         waveform_input = waveform_norm.unsqueeze(0).to(DEVICE)  # (1, 1, L)
         with torch.no_grad():
             predicted = model(waveform_input)
 
-        # Post-process
+        # Post-procesa
         predicted = postprocess(predicted, max_val, original_length, pad_amount)
 
-        print(f"Output stats — Min: {predicted.min():.4f}, Max: {predicted.max():.4f}, Mean: {predicted.mean():.4f}")
-
-        # Save results
+        # Guarda los resultados
         base_name = os.path.splitext(filename)[0]
         save_path = os.path.join(OUTPUT_DIR, base_name)
         os.makedirs(save_path, exist_ok=True)
 
-        # Copy original low-quality input file
+        # Copia el archivo de entrada original de baja calidad
         shutil.copy2(file_path, os.path.join(save_path, 'input.wav'))
 
-        # Save reconstructed super-resolution output
+        # Guarda la salida reconstruida de super-resolución
         save_audio(predicted, os.path.join(save_path, 'super_res.wav'), TARGET_SR)
 
-        # Normalize predicted for plotting (same scale as input)
+        # Normaliza la predicción para la gráfica (misma escala que la entrada)
         predicted_for_plot = predicted.cpu() / max_val
 
-        # Waveform comparison (original vs reconstructed)
+        # Comparación de forma de onda (original vs reconstruida)
         save_waveform_plot(
             input_for_plot,
             predicted_for_plot,
@@ -223,7 +222,7 @@ def inference():
             TARGET_SR,
         )
 
-        # Spectrogram comparison (original at native SR vs reconstructed at target SR)
+        # Comparación de espectrograma (original a SR nativa vs reconstruida a SR objetivo)
         save_spectrogram_plot(
             original_waveform,
             predicted_for_plot,
@@ -232,9 +231,9 @@ def inference():
             sr_sample_rate=TARGET_SR,
         )
 
-        print(f"Saved to {save_path}/\n")
+        print(f"Guardado en {save_path}/\n")
 
-    print(f"Done. Check the '{OUTPUT_DIR}' folder.")
+    print(f"Listo. Revisa la carpeta '{OUTPUT_DIR}'.")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,5 @@
+# Modelo UNet 1D para audio
+
 import torch
 import torch.nn as nn
 
@@ -56,9 +58,9 @@ class UNetAudio(nn.Module):
         # Bottleneck
         b = self.bottleneck(p3)
 
-        # Decoder with Skip Connections
+        # Decoder con conexiones de salto
         d3 = self.up3(b)
-        # Concatenate d3 with e3 (Skip Connection)
+        # Concatenar d3 con e3 (Conexión de salto)
         d3 = torch.cat((d3, e3), dim=1) 
         d3 = self.dec3(d3)
 
