@@ -9,9 +9,12 @@ from torch.utils.data import Dataset
 class AudioSuperResDataset(Dataset):
     def __init__(self, hr_dir, lr_dir, segment_length=65536):
         """
-        hr_dir: Directorio de los archivos en alta calidad
-        lr_dir: Directorio de los archivos en baja calidad
-        segment_length: Longitud del segmento de audio (debe ser divisible por 8 para 3 capas de pooling)
+        Clase para cargar pares de audio (Alta Calidad - HR y Baja Calidad - LR).
+
+        hr_dir: Directorio de los archivos en alta calidad (Ground Truth)
+        lr_dir: Directorio de los archivos en baja calidad (Input)
+        segment_length: Longitud del segmento de audio para el entrenamiento (en muestras).
+                        Debe ser divisible por 8 debido a las 3 capas de pooling en UNet (2^3 = 8).
         """
         self.hr_dir = hr_dir
         self.lr_dir = lr_dir
@@ -19,10 +22,11 @@ class AudioSuperResDataset(Dataset):
         # Contar ficheros automaticamente
         self.files = [f for f in os.listdir(hr_dir) if f.endswith('.wav') and os.path.exists(os.path.join(lr_dir, f))]
         
-        # Longitud del segmento de audio (debe ser divisible por 8 para 3 capas de pooling)
+        # Longitud del segmento de audio
         self.segment_length = segment_length
 
     def __len__(self):
+        # Devuelve el tamaño total del dataset
         return len(self.files)
 
     def __getitem__(self, idx):
@@ -51,13 +55,15 @@ class AudioSuperResDataset(Dataset):
 
         min_len = min(waveform_hr.size(1), waveform_lr.size(1))
         
+        # Random Crop o Padding
         if min_len < self.segment_length:
-            # Rellenar si el audio es más corto que el segmento
+            # Padding: Si el audio es más corto, rellenamos con ceros a la derecha.
             pad_amount = self.segment_length - min_len
             waveform_hr = F.pad(waveform_hr[:, :min_len], (0, pad_amount))
             waveform_lr = F.pad(waveform_lr[:, :min_len], (0, pad_amount))
         else:
-            # Cortar si el audio es más largo
+            # Random Crop: Si es más largo, elegimos un trozo aleatorio.
+            # Esto ayuda al modelo a generalizar mejor (Data Augmentation implícito).
             start = torch.randint(0, min_len - self.segment_length, (1,)).item()
             waveform_hr = waveform_hr[:, start:start+self.segment_length]
             waveform_lr = waveform_lr[:, start:start+self.segment_length]

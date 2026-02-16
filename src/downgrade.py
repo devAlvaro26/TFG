@@ -6,14 +6,14 @@ import scipy.io.wavfile as wav
 from scipy.signal import resample
 
 fs = 8000 #Frecuencia de muestreo objetivo
-HR_DIR = 'D:/Proyectos/TFG/data/train/HR'
-LR_DIR = 'D:/Proyectos/TFG/data/train/LR'
+HR_DIR = './data/train/HR'
+LR_DIR = './data/train/LR'
 
 files = [f for f in os.listdir(HR_DIR) if f.endswith('.wav')]
 for file in files:
     fs_original, audio = wav.read(os.path.join(HR_DIR, file))
 
-    # Resampliar a nuevo fs
+    # Resamplear a nuevo fs
     num_samples_nuevo = int(len(audio) * fs / fs_original)
     audio_resampled = resample(audio, num_samples_nuevo).astype(np.int16)
 

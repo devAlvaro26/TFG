@@ -35,6 +35,8 @@ class UNetAudio(nn.Module):
         self.final = nn.Conv1d(16, 1, kernel_size=1)
 
     def conv_block(self, in_ch, out_ch):
+        # Bloque convolucional básico: Conv -> BatchNorm -> ReLU -> Conv -> BatchNorm -> ReLU
+        # Mantiene la longitud temporal (padding=1 con kernel=3)
         return nn.Sequential(
             nn.Conv1d(in_ch, out_ch, 3, padding=1),
             nn.BatchNorm1d(out_ch),
@@ -58,9 +60,9 @@ class UNetAudio(nn.Module):
         # Bottleneck
         b = self.bottleneck(p3)
 
-        # Decoder con conexiones de salto
+        # Decoder con conexiones de salto (Skip Connections)
         d3 = self.up3(b)
-        # Concatenar d3 con e3 (Conexión de salto)
+        # Concatenar d3 con e3 (Salida del bloque enc3 correspondiente)
         d3 = torch.cat((d3, e3), dim=1) 
         d3 = self.dec3(d3)
 

@@ -10,12 +10,11 @@ import matplotlib.pyplot as plt
 from src.model import UNetAudio
 
 MODEL_PATH = 'unet_superres.pth'
-TEST_DIR = './data/test'
-OUTPUT_DIR = './results'
+TEST_DIR = './data/test'    # Archivos de entrada
+OUTPUT_DIR = './results'    # Archivos de salida
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 TARGET_SR = 44100       # Target sample rate
-MAX_SECONDS = 10        # Duracion a procesar
 POOL_FACTOR = 8         # 2^3 para 3 capas de pooling en UNet
 
 
@@ -135,7 +134,7 @@ def inference():
         return
     model.eval()
 
-    # Descubre los archivos de prueba
+    # Carga los archivos de prueba
     files = [f for f in os.listdir(TEST_DIR) if f.endswith('.wav')]
     if not files:
         print(f"No se encontraron archivos .wav en {TEST_DIR}")
@@ -156,11 +155,8 @@ def inference():
         original_waveform = waveform.clone()
         if original_waveform.size(0) > 1:
             original_waveform = original_waveform.mean(dim=0, keepdim=True)
-        max_samples_orig = original_sr * MAX_SECONDS
-        if original_waveform.size(1) > max_samples_orig:
-            original_waveform = original_waveform[:, :max_samples_orig]
 
-        # Resample if necessary (using cached resampler)
+        # Remuestrea si es necesario (usando resampler en caché)
         if original_sr != TARGET_SR:
             if original_sr not in resamplers:
                  resamplers[original_sr] = torchaudio.transforms.Resample(original_sr, TARGET_SR).to(DEVICE)
@@ -174,12 +170,8 @@ def inference():
         if waveform.size(0) > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
 
-        # Trunca a MAX_SECONDS
-        max_samples = TARGET_SR * MAX_SECONDS
-        if waveform.size(1) > max_samples:
-            waveform = waveform[:, :max_samples]
-
-        # Rellena para ser divisible por POOL_FACTOR
+        # Rellena para ser divisible por POOL_FACTOR.
+        # La arquitectura UNet requiere que las dimensiones sean divisibles por 2^n_capas.
         original_length = waveform.size(1)
         pad_amount = (POOL_FACTOR - (original_length % POOL_FACTOR)) % POOL_FACTOR
         if pad_amount > 0:
@@ -197,7 +189,7 @@ def inference():
         with torch.no_grad():
             predicted = model(waveform_input)
 
-        # Post-procesa
+        # Post-procesa la salida (quita padding, desnormaliza).
         predicted = postprocess(predicted, max_val, original_length, pad_amount)
 
         # Guarda los resultados
@@ -214,7 +206,7 @@ def inference():
         # Normaliza la predicción para la gráfica (misma escala que la entrada)
         predicted_for_plot = predicted.cpu() / max_val
 
-        # Comparación de forma de onda (original vs reconstruida)
+        # Comparación de forma de onda (original vs reconstruida Super-Res)
         save_waveform_plot(
             input_for_plot,
             predicted_for_plot,

@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader
 from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio
 
-HR_DIR = './data/train/HR'
-LR_DIR = './data/train/LR'
-BATCH_SIZE = 2  
+HR_DIR = './data/train/HR' #Archivos de alta resolución (output de la red)
+LR_DIR = './data/train/LR' #Archivos de baja resolución (input de la red)
+BATCH_SIZE = 2
 EPOCHS = 50
 LEARNING_RATE = 0.001
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -21,7 +21,9 @@ def train():
         print(f"Error: Por favor, proporcione rutas válidas para {HR_DIR} y {LR_DIR}")
         return
 
+    # Cargar dataset
     dataset = AudioSuperResDataset(HR_DIR, LR_DIR)
+
     if len(dataset) == 0:
         print("Error: El dataset está vacío")
         return
@@ -33,11 +35,13 @@ def train():
     model = UNetAudio().to(DEVICE)
     
     # Inicializar Loss y Optimizer
-    criterion = torch.nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999))
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=10
-    )
+    # MSELoss (Mean Squared Error)
+    # Optimizer Adam: algoritmo de optimización adaptativo y eficiente.
+    criterion = torch.nn.MSELoss() 
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999)) 
+    
+    # Scheduler: Reduce la tasa de aprendizaje si la pérdida (loss) no mejora en 'patience' épocas.
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10) 
 
     print(f"Iniciando entrenamiento en {DEVICE}...")
 
@@ -59,9 +63,10 @@ def train():
             optimizer.zero_grad()
             loss.backward()
             
-            # Gradient clipping para evitar gradientes muy grandes
+            # Gradient clipping para evitar explosión de gradientes (gradientes muy grandes que desestabilizan la red)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
+            # Actualiza los pesos del modelo
             optimizer.step()
 
             running_loss += loss.item()
@@ -69,10 +74,10 @@ def train():
         epoch_loss = running_loss / len(dataloader)
         print(f"Epoch [{epoch+1}/{EPOCHS}] Loss: {epoch_loss:.6f} | LR: {optimizer.param_groups[0]['lr']:.6f}")
         
-        # Actualizar scheduler
+        # Actualizar scheduler basado en la pérdida de la época
         scheduler.step(epoch_loss)
         
-        # Guardar mejor modelo
+        # Guardar el mejor modelo encontrado hasta el momento
         if epoch_loss < best_loss:
             best_loss = epoch_loss
             torch.save(model.state_dict(), 'unet_superres.pth')
