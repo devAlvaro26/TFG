@@ -10,9 +10,9 @@ from src.model import UNetAudio
 
 HR_DIR = './data/train/HR' #Archivos de alta resolución (output de la red)
 LR_DIR = './data/train/LR' #Archivos de baja resolución (input de la red)
-BATCH_SIZE = 2
-EPOCHS = 50
-LEARNING_RATE = 0.001
+BATCH_SIZE = 4
+EPOCHS = 100
+LEARNING_RATE = 1e-4
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def train():
@@ -35,7 +35,7 @@ def train():
     model = UNetAudio().to(DEVICE)
     
     # Inicializar Loss y Optimizer
-    # MSELoss (Mean Squared Error)
+    # MSELoss (L2)
     # Optimizer Adam: algoritmo de optimización adaptativo y eficiente.
     criterion = torch.nn.MSELoss() 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999)) 
@@ -63,7 +63,7 @@ def train():
             optimizer.zero_grad()
             loss.backward()
             
-            # Gradient clipping para evitar explosión de gradientes (gradientes muy grandes que desestabilizan la red)
+            # Gradient clipping para evitar explosión de gradientes (gradientes muy grandes que pueden desestabilizar la red)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             # Actualiza los pesos del modelo

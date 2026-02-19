@@ -13,8 +13,7 @@ class AudioSuperResDataset(Dataset):
 
         hr_dir: Directorio de los archivos en alta calidad (Ground Truth)
         lr_dir: Directorio de los archivos en baja calidad (Input)
-        segment_length: Longitud del segmento de audio para el entrenamiento (en muestras).
-                        Debe ser divisible por 8 debido a las 3 capas de pooling en UNet (2^3 = 8).
+        segment_length: Longitud del segmento de audio para el entrenamiento (en muestras). Debe ser divisible por 8 debido a las 3 capas de pooling en UNet (2^3 = 8).
         """
         self.hr_dir = hr_dir
         self.lr_dir = lr_dir

@@ -140,7 +140,7 @@ def inference():
         print(f"No se encontraron archivos .wav en {TEST_DIR}")
         return
 
-    print(f"Encontrados {len(files)} archivos para procesar.\n")
+    print(f"Encontrados {len(files)} archivos para procesar.")
 
     resamplers = {}
 
@@ -223,7 +223,7 @@ def inference():
             sr_sample_rate=TARGET_SR,
         )
 
-        print(f"Guardado en {save_path}/\n")
+        print(f"Guardado en {save_path}")
 
     print(f"Listo. Revisa la carpeta '{OUTPUT_DIR}'.")
 

@@ -1,10 +1,10 @@
 # Superresolución de Audio con UNet
 
-Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 1D para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando efectivamente la conversión de un muestreo bajo a un objetivo de 44.1kHz.
+Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 1D para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a 44.1kHz.
 
 ## Características
 
-*   **Arquitectura UNet 1D**: Personalizada para el procesamiento eficiente de formas de onda de audio.
+*   **Arquitectura UNet 1D**: Aplicada al procesamiento de audio.
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
 *   **Manejo de Datos**: Gestiona longitudes de audio arbitrarias mediante relleno o recorte aleatorio durante el entrenamiento.
 *   **Inferencia y Visualización**:
@@ -25,7 +25,8 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 ├── src/                    # Módulos de código fuente
 │   ├── dataset.py          # Clase Dataset personalizada para cargar pares de audio
 │   ├── model.py            # Definición del modelo UNetAudio
-│   └── ...
+│   └── downgrade.py        # Script para degradar el audio
+|
 ├── inference.py            # Script para ejecutar inferencia en datos de prueba
 ├── train.py                # Script para entrenar el modelo
 ├── requirements.txt        # Dependencias de Python
@@ -34,8 +35,8 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 
 ## Instalación
 
-1.  Clona el repositorio.
-2.  Instala las dependencias requeridas:
+1.  Clonar el repositorio.
+2.  Instalar las dependencias requeridas:
 
     ```bash
     pip install -r requirements.txt
@@ -45,12 +46,12 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 
 ### 1. Entrenamiento
 
-Para entrenar el modelo, necesitas un dataset de pares de archivos de audio de Alta Resolución (HR) y Baja Resolución (LR).
+Para entrenar el modelo, es necesario un dataset de pares de archivos de audio de Alta Resolución (HR) y Baja Resolución (LR).
 
-1.  Coloca los archivos wav de **Alta Resolución** en `./data/train/HR/`.
-2.  Coloca los archivos wav correspondientes de **Baja Resolución** en `./data/train/LR/`.
+1.  Colocar los archivos wav de **Alta Resolución** en `./data/train/HR/`.
+2.  Colocar los archivos wav correspondientes de **Baja Resolución** en `./data/train/LR/`.
     *   *Nota: Los nombres de archivo deben coincidir exactamente entre las carpetas HR y LR.*
-3.  Ejecuta el script de entrenamiento:
+3.  Ejecutar el script de entrenamiento:
 
     ```bash
     python train.py
@@ -62,8 +63,8 @@ El script entrenará el modelo por un número especificado de épocas y guardar�
 
 Para probar el modelo en nuevos archivos de audio:
 
-1.  Coloca los archivos de entrada `.wav` en `./data/test/`.
-2.  Ejecuta el script de inferencia:
+1.  Colocar los archivos de entrada `.wav` en `./data/test/`.
+2.  Ejecutar el script de inferencia:
 
     ```bash
     python inference.py
