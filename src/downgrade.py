@@ -1,23 +1,26 @@
-# Script para bajar la frecuencia de muestreo de los archivos de audio y crear el dataset de entrenamiento
-
 import os
-import numpy as np
-import scipy.io.wavfile as wav
-from scipy.signal import resample
+import torchaudio
+import torchaudio.functional as F
 
-fs = 8000 #Frecuencia de muestreo objetivo
 HR_DIR = './data/train/HR'
 LR_DIR = './data/train/LR'
+TARGET_SR = 8000
 
 files = [f for f in os.listdir(HR_DIR) if f.endswith('.wav')]
 for file in files:
-    fs_original, audio = wav.read(os.path.join(HR_DIR, file))
-
-    # Resamplear a nuevo fs
-    num_samples_nuevo = int(len(audio) * fs / fs_original)
-    audio_resampled = resample(audio, num_samples_nuevo).astype(np.int16)
-
-    # Guardar con la nueva frecuencia de muestreo
-    wav.write(os.path.join(LR_DIR, file), fs, audio_resampled)
-
-    print(f"{file} resampleado a {fs} Hz")
+    waveform, sr = torchaudio.load(os.path.join(HR_DIR, file))
+    
+    # Forzar 44.1kHz
+    if sr != 44100:
+        waveform = F.resample(waveform, sr, 44100)
+    
+    # Degradar a 8kHz
+    downsampled = F.resample(waveform, 44100, TARGET_SR)
+    
+    torchaudio.save(
+        os.path.join(LR_DIR, file),
+        downsampled, TARGET_SR,
+        bits_per_sample=16,
+        encoding="PCM_S"
+    )
+    print(f"{file}: degradado a {TARGET_SR}Hz")
