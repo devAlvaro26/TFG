@@ -1,12 +1,13 @@
-# Superresolución de Audio con UNet
+# Superresolución de Audio con UNet 2D
 
-Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 1D para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a 44.1kHz.
+Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT (Short-Time Fourier Transform) para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a 44.1kHz.
 
 ## Características
 
-*   **Arquitectura UNet 1D**: Aplicada al procesamiento de audio.
+*   **Arquitectura UNet 2D**: Aplicada al procesamiento de la magnitud real e imaginaria del STFT.
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
-*   **Manejo de Datos**: Gestiona longitudes de audio arbitrarias mediante relleno o recorte aleatorio durante el entrenamiento.
+*   **Pérdida Multi-objetivo**: Utiliza `STFTMagnitudeLoss` (Spectral Convergence + Log-Magnitude L1 + Complex MSE) para una reconstrucción mejorada.
+*   **Aprendizaje Residual**: El modelo aprende a predecir el contenido faltante (residuo) que se suma a la entrada de baja resolución.
 *   **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
@@ -23,14 +24,15 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 │   └── test/               # Archivos de audio de prueba para inferencia
 ├── results/                # Directorio de salida para resultados de inferencia
 ├── src/                    # Módulos de código fuente
-│   ├── dataset.py          # Clase Dataset personalizada para cargar pares de audio
-│   ├── model.py            # Definición del modelo UNetAudio
-│   └── downgrade.py        # Script para degradar el audio
+│   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a STFT (Real/Imag)
+│   ├── model.py            # Definición del modelo UNetAudio2D
+│   ├── loss.py             # Función de pérdida STFT multi-objetivo
+│   └── downgrade.py        # Script para degradar el audio (para generar LR)
 |
 ├── inference.py            # Script para ejecutar inferencia en datos de prueba
 ├── train.py                # Script para entrenar el modelo
 ├── requirements.txt        # Dependencias de Python
-└── unet_superres.pth       # Checkpoint del modelo entrenado
+└── unet2D_superres.pth     # Checkpoint del modelo entrenado
 ```
 
 ## Instalación
@@ -57,7 +59,7 @@ Para entrenar el modelo, es necesario un dataset de pares de archivos de audio d
     python train.py
     ```
 
-El script entrenará el modelo por un número especificado de épocas y guardará el mejor modelo (basado en la pérdida) en `unet_superres.pth`.
+El script entrenará el modelo y guardará el mejor checkpoint en `unet2D_superres.pth`. Utiliza un sistema de *Early Stopping* si la pérdida no mejora durante varias épocas.
 
 ### 2. Inferencia
 

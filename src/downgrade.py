@@ -10,12 +10,8 @@ files = [f for f in os.listdir(HR_DIR) if f.endswith('.wav')]
 for file in files:
     waveform, sr = torchaudio.load(os.path.join(HR_DIR, file))
     
-    # Forzar 44.1kHz
-    if sr != 44100:
-        waveform = F.resample(waveform, sr, 44100)
-    
     # Degradar a 8kHz
-    downsampled = F.resample(waveform, 44100, TARGET_SR)
+    downsampled = F.resample(waveform, sr, TARGET_SR)
     
     torchaudio.save(
         os.path.join(LR_DIR, file),
