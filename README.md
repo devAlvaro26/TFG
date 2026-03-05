@@ -86,9 +86,9 @@ Para probar el modelo en nuevos archivos de audio:
 ## Requisitos
 
 *   Python 3.12.10
-*   torch 2.5.1
-*   torchaudio 2.5.1
-*   torchvision 0.20.1
+*   torch 2.4.1
+*   torchaudio 2.4.1
+*   torchvision 0.19.1
 *   numpy
 *   matplotlib
 *   soundfile
