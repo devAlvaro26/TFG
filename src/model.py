@@ -25,16 +25,22 @@ class UNetAudio2D(nn.Module):
         self.bottleneck = self.conv_block(256, 512)
 
         # --- Decoder (Upsampling) ---
-        self.up4 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
+        self.up4 = nn.Sequential(nn.Conv2d(512, 256 * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2), nn.LeakyReLU(0.2, inplace=True),)
         self.dec4 = self.conv_block(512, 256)   # 256 (up) + 256 (skip)
+        # Pixel shuffle añadido en base a https://github.com/kuleshov/audio-super-res 
+        # Solución a los artefactos de checkerboard
 
-        self.up3 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.up3 = nn.Sequential(nn.Conv2d(256, 128 * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2), nn.LeakyReLU(0.2, inplace=True),)
         self.dec3 = self.conv_block(256, 128)   # 128 (up) + 128 (skip)
 
-        self.up2 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.up2 = nn.Sequential(nn.Conv2d(128, 64 * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2), nn.LeakyReLU(0.2, inplace=True),)
         self.dec2 = self.conv_block(128, 64)    # 64 (up) + 64 (skip)
 
-        self.up1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.up1 = nn.Sequential(nn.Conv2d(64, 32 * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2), nn.LeakyReLU(0.2, inplace=True),)
         self.dec1 = self.conv_block(64, 32)     # 32 (up) + 32 (skip)
 
         # --- Output ---

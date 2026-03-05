@@ -43,6 +43,11 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
     ```bash
     pip install -r requirements.txt
     ```
+3. Opcional: Instalar torch-directml para GPU de AMD:
+
+    ```bash
+    pip install torch-directml==0.2.5.dev240914
+    ```
 
 ## Uso
 

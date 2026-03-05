@@ -9,12 +9,24 @@ from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
 from src.loss import STFTMagnitudeLoss
 
-HR_DIR = './data/train/HR'  # Archivos de alta resolución (output de la red)
-LR_DIR = './data/train/LR'  # Archivos de baja resolución (input de la red)
+HR_DIR = 'D:/Audio/HR'  # Archivos de alta resolución (output de la red)
+LR_DIR = 'D:/Audio/LR'  # Archivos de baja resolución (input de la red)
 BATCH_SIZE = 8
 EPOCHS = 200
-LEARNING_RATE = 1e-4
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+LEARNING_RATE = 5e-4
+
+try:
+    import torch_directml
+    has_dml = torch_directml.is_available()
+except ImportError:
+    has_dml = False
+
+if torch.cuda.is_available():
+    DEVICE = 'cuda'
+elif has_dml:
+    DEVICE = torch_directml.device()
+else:
+    DEVICE = 'cpu'
 
 def train():
     
@@ -38,16 +50,16 @@ def train():
     # Inicializar Loss y Optimizer
     # STFTMagnitudeLoss (L1 + L2 + Perceptual)
     # Optimizer Adam
-    criterion = STFTMagnitudeLoss(alpha=1.0, beta=1.0, gamma=0.5).to(DEVICE)
+    criterion = STFTMagnitudeLoss(alpha=1.0, beta=1.0, gamma=0.1).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999)) 
 
     # Scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20)
 
     print(f"Iniciando entrenamiento en {DEVICE}...")
 
     best_loss = float('inf')
-    pattience_earlystop = 20
+    pattience_earlystop = 50
     epochs_no_improve = 0
 
     # Bucle de entrenamiento

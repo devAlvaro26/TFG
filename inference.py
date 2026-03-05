@@ -12,7 +12,19 @@ from src.model import UNetAudio2D
 MODEL_PATH = 'unet2D_superres.pth'
 TEST_DIR = './data/test'    # Archivos de entrada
 OUTPUT_DIR = './results'    # Archivos de salida
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+try:
+    import torch_directml
+    has_dml = torch_directml.is_available()
+except ImportError:
+    has_dml = False
+
+if torch.cuda.is_available():
+    DEVICE = 'cuda'
+elif has_dml:
+    DEVICE = torch_directml.device()
+else:
+    DEVICE = 'cpu'
 
 TARGET_SR = 44100       # Target sample rate
 POOL_FACTOR = 16        # 2^4 para 4 capas de pooling en UNet 2D
@@ -27,35 +39,37 @@ def save_audio(tensor, path, sample_rate):
 
 
 def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
-    if waveform.ndim == 2:
-        waveform = waveform.squeeze(0)  #(L,)
+    original_device = waveform.device
+    waveform_cpu = waveform.cpu()
+    if waveform_cpu.ndim == 2:
+        waveform_cpu = waveform_cpu.squeeze(0)
 
-    window = torch.hann_window(n_fft, device=waveform.device)
+    window = torch.hann_window(n_fft, device='cpu')
     stft = torch.stft(
-        waveform,
+        waveform_cpu,
         n_fft=n_fft,
         hop_length=hop_length,
         win_length=n_fft,
         window=window,
         return_complex=True,
-    )  #(F, T)
-
-    return torch.stack([stft.real, stft.imag], dim=0)  #(2, F, T)
-
+    )
+    # Convert to real/imag stack and move back to original device
+    return torch.stack([stft.real, stft.imag], dim=0).to(original_device)
 
 def stft_to_waveform(stft_ri, n_fft=N_FFT, hop_length=HOP_LENGTH):
-    stft_complex = torch.complex(stft_ri[0], stft_ri[1])  # (F, T)
-
-    window = torch.hann_window(n_fft, device=stft_ri.device)
+    original_device = stft_ri.device
+    stft_ri_cpu = stft_ri.cpu()
+    
+    stft_complex = torch.complex(stft_ri_cpu[0], stft_ri_cpu[1])
+    window = torch.hann_window(n_fft, device='cpu')
     waveform = torch.istft(
         stft_complex,
         n_fft=n_fft,
         hop_length=hop_length,
         win_length=n_fft,
         window=window,
-    )  # (L,)
-
-    return waveform.unsqueeze(0)  # (1, L)
+    )
+    return waveform.unsqueeze(0).to(original_device)
 
 
 def pad_stft(stft, pool_factor=POOL_FACTOR):
@@ -141,7 +155,7 @@ def inference():
     print(f"Cargando modelo desde {MODEL_PATH}...")
     model = UNetAudio2D().to(DEVICE)
     try:
-        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True))
+        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)) # weights_only=False para compatibilidad con AMD
     except FileNotFoundError:
         print(f"Error: No se encontró el archivo del modelo '{MODEL_PATH}'.")
         return
