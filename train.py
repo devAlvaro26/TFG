@@ -9,8 +9,8 @@ from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
 from src.loss import STFTMagnitudeLoss
 
-HR_DIR = 'D:/Audio/HR'  # Archivos de alta resolución (output de la red)
-LR_DIR = 'D:/Audio/LR'  # Archivos de baja resolución (input de la red)
+HR_DIR = './data/train/HR'  # Archivos de alta resolución (output de la red)
+LR_DIR = './data/train/LR'  # Archivos de baja resolución (input de la red)
 BATCH_SIZE = 8
 EPOCHS = 200
 LEARNING_RATE = 5e-4
