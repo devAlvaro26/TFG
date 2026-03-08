@@ -9,11 +9,11 @@ from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
 from src.loss import STFTMagnitudeLoss
 
-HR_DIR = './data/train/HR'  # Archivos de alta resolución (output de la red)
-LR_DIR = './data/train/LR'  # Archivos de baja resolución (input de la red)
+HR_DIR = 'D:/Audio/HR'  # Archivos de alta resolución (output de la red)
+LR_DIR = 'D:/Audio/LR'  # Archivos de baja resolución (input de la red)
 BATCH_SIZE = 8
-EPOCHS = 200
-LEARNING_RATE = 5e-4
+EPOCHS = 150
+LEARNING_RATE = 2e-4
 
 try:
     import torch_directml
@@ -48,13 +48,13 @@ def train():
     model = UNetAudio2D().to(DEVICE)
 
     # Inicializar Loss y Optimizer
-    # STFTMagnitudeLoss (L1 + L2 + Perceptual)
+    # STFTMagnitudeLoss (Convergencia espectral + Log-Magnitude L1 + MSE complejo)
     # Optimizer Adam
     criterion = STFTMagnitudeLoss(alpha=1.0, beta=1.0, gamma=0.1).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999)) 
 
     # Scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=15)
 
     print(f"Iniciando entrenamiento en {DEVICE}...")
 

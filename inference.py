@@ -239,4 +239,9 @@ def inference():
 
 
 if __name__ == "__main__":
-    inference()
+    try:
+        inference()
+    except:
+        DEVICE = 'cpu'
+        print("Error durante la inferencia. Intentando en CPU...")
+        inference()
