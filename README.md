@@ -1,38 +1,40 @@
 # Superresolución de Audio con UNet 2D
 
-Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT (Short-Time Fourier Transform) para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a 44.1kHz.
+Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a 44.1kHz.
 
 ## Características
 
 *   **Arquitectura UNet 2D**: Aplicada al procesamiento de la magnitud real e imaginaria del STFT.
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
-*   **Pérdida Multi-objetivo**: Utiliza `STFTMagnitudeLoss` (Spectral Convergence + Log-Magnitude L1 + Complex MSE) para una reconstrucción mejorada.
+*   **Pérdida Multi-objetivo**: Utiliza `STFTMagnitudeLoss` (Convergencia espectral + Log-Magnitude L1 + MSE complejo) para una reconstrucción mejorada.
 *   **Aprendizaje Residual**: El modelo aprende a predecir el contenido faltante (residuo) que se suma a la entrada de baja resolución.
 *   **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
     - Produce gráficos comparativos de espectrograma para visualizar la reconstrucción de frecuencias.
 
+## Dataset
+
+El dataset utilizado para el modelo pre-entrenado es el **[MUSDB18-HQ](https://zenodo.org/records/3338373)**
+
 ## Estructura del Proyecto
 
 ```
 .
-├── data/                   # Directorio para dataset y archivos de prueba
-│   ├── train/              # Datos de entrenamiento
-│   │   ├── HR/             # Audio de Alta Resolución (Ground Truth)
-│   │   └── LR/             # Audio de Baja Resolución (Input)
-│   └── test/               # Archivos de audio de prueba para inferencia
-├── results/                # Directorio de salida para resultados de inferencia
-├── src/                    # Módulos de código fuente
-│   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a STFT (Real/Imag)
-│   ├── model.py            # Definición del modelo UNetAudio2D
-│   ├── loss.py             # Función de pérdida STFT multi-objetivo
-│   └── downgrade.py        # Script para degradar el audio (para generar LR)
-|
-├── inference.py            # Script para ejecutar inferencia en datos de prueba
-├── train.py                # Script para entrenar el modelo
-├── requirements.txt        # Dependencias de Python
-└── unet2D_superres.pth     # Checkpoint del modelo entrenado
+├── data/
+│   ├── train/              # Dataset de entrenamiento (HR/LR)
+│   ├── test/               # Dataset de validación (HR/LR)
+│   └── inference/          # Archivos .wav para procesar con el modelo
+├── results/                # Salida de la inferencia (audio + gráficos)
+├── src/
+│   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a STFT
+│   ├── model.py            # Definición de UNetAudio2D + AttentionGate
+│   ├── loss.py             # STFTMagnitudeLoss con énfasis frecuencial
+│   └── downgrade.py        # Herramienta para generar pares LR desde HR
+├── train.py                # Script de entrenamiento con Scheduler y Early Stopping
+├── inference.py            # Script para ejecución y visualización de resultados
+├── requirements.txt        # Dependencias del proyecto
+└── unet2D_superres.pth     # Checkpoint del mejor modelo guardado
 ```
 
 ## Instalación
@@ -58,7 +60,8 @@ Para entrenar el modelo, es necesario un dataset de pares de archivos de audio d
 1.  Colocar los archivos wav de **Alta Resolución** en `./data/train/HR/`.
 2.  Colocar los archivos wav correspondientes de **Baja Resolución** en `./data/train/LR/`.
     *   *Nota: Los nombres de archivo deben coincidir exactamente entre las carpetas HR y LR.*
-3.  Ejecutar el script de entrenamiento:
+3. Colocar los archivos de validación en `./data/test/HR/` y `./data/test/LR/`.
+4.  Ejecutar el script de entrenamiento:
 
     ```bash
     python train.py
@@ -70,7 +73,7 @@ El script entrenará el modelo y guardará el mejor checkpoint en `unet2D_superr
 
 Para probar el modelo en nuevos archivos de audio:
 
-1.  Colocar los archivos de entrada `.wav` en `./data/test/`.
+1.  Colocar los archivos de entrada `.wav` en `./data/inference/`.
 2.  Ejecutar el script de inferencia:
 
     ```bash
