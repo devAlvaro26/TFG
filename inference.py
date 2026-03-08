@@ -9,9 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from src.model import UNetAudio2D
 
-MODEL_PATH = 'unet2D_superres.pth'
-TEST_DIR = './data/test'    # Archivos de entrada
-OUTPUT_DIR = './results'    # Archivos de salida
+MODEL_PATH = 'unet2D_superres.pth'  # Archivo del modelo entrenado
+INF_DIR = './data/inference'        # Archivos de entrada
+OUTPUT_DIR = './results'            # Archivos de salida
 
 try:
     import torch_directml
@@ -28,8 +28,8 @@ else:
 
 TARGET_SR = 44100       # Target sample rate
 POOL_FACTOR = 16        # 2^4 para 4 capas de pooling en UNet 2D
-N_FFT = 1024
-HOP_LENGTH = 256
+N_FFT = 1024            # Tamaño de la FFT para STFT
+HOP_LENGTH = 256        # Salto entre ventanas STFT
 
 
 def save_audio(tensor, path, sample_rate):
@@ -161,9 +161,9 @@ def inference():
         return
     model.eval()
 
-    files = [f for f in os.listdir(TEST_DIR) if f.endswith('.wav')]
+    files = [f for f in os.listdir(INF_DIR) if f.endswith('.wav')]
     if not files:
-        print(f"No se encontraron archivos .wav en {TEST_DIR}")
+        print(f"No se encontraron archivos .wav en {INF_DIR}")
         return
 
     print(f"Encontrados {len(files)} archivos para procesar.")
@@ -171,7 +171,7 @@ def inference():
     resamplers = {}
 
     for filename in files:
-        file_path = os.path.join(TEST_DIR, filename)
+        file_path = os.path.join(INF_DIR, filename)
         print(f"Procesando: {filename}")
 
         waveform, original_sr = torchaudio.load(file_path)
@@ -241,7 +241,7 @@ def inference():
 if __name__ == "__main__":
     try:
         inference()
-    except:
+    except RuntimeError:
         DEVICE = 'cpu'
         print("Error durante la inferencia. Intentando en CPU...")
         inference()

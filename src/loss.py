@@ -17,11 +17,11 @@ class STFTMagnitudeLoss(nn.Module):
         self.gamma = gamma
         self.freq_emphasis = freq_emphasis
 
-    def _magnitude(self, x: torch.Tensor) -> torch.Tensor:
+    def _magnitude(self, x):
         """Magnitud espectral a partir de (B, 2, F, T) → (B, F, T)."""
         return torch.sqrt(x[:, 0] ** 2 + x[:, 1] ** 2 + 1e-7)
 
-    def _freq_weights(self, n_freqs: int, device: torch.device) -> torch.Tensor:
+    def _freq_weights(self, n_freqs, device):
         """
         Máscara de énfasis frecuencial: escala lineal de 1.0 (DC) a 2.0 (Nyquist).
         Shape: (1, F, 1) — broadcast sobre batch y tiempo.
@@ -30,7 +30,7 @@ class STFTMagnitudeLoss(nn.Module):
         weights = torch.linspace(1.0, 2.0, n_freqs, device=device)
         return weights.view(1, -1, 1)
 
-    def forward(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def forward(self, y_hat, y):
         # y_hat, y: (B, 2, F, T) — canal 0: real, canal 1: imaginario
 
         mag_hat = self._magnitude(y_hat)   # (B, F, T)
@@ -46,7 +46,7 @@ class STFTMagnitudeLoss(nn.Module):
         sc_loss = (torch.norm(mag_y - mag_hat, p="fro", dim=(-2, -1)) /(torch.norm(mag_y, p="fro", dim=(-2, -1)) + 1e-7)).mean()
 
         # 2. Log-Magnitude L1 — error perceptual en escala logarítmica
-        log_loss = F.l1_loss(torch.log(mag_hat), torch.log(mag_y))
+        log_loss = F.l1_loss(torch.log10(1 + mag_hat), torch.log10(1 + mag_y))
 
         # 3. Complex MSE — supervisión directa de fase y magnitud sobre (real, imag)
         complex_mse = F.mse_loss(y_hat, y)

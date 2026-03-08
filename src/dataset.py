@@ -83,6 +83,12 @@ class AudioSuperResDataset(Dataset):
         waveform_hr, sr_hr = torchaudio.load(hr_path)
         waveform_lr, sr_lr = torchaudio.load(lr_path)
 
+        # Uniformizar a mono
+        if waveform_hr.size(0) > 1:
+            waveform_hr = waveform_hr.mean(dim=0, keepdim=True)
+        if waveform_lr.size(0) > 1:
+            waveform_lr = waveform_lr.mean(dim=0, keepdim=True)
+
         # Forzar 44.1kHz en ambos para alinear cortes
         if sr_hr != 44100:
             resampler = torchaudio.transforms.Resample(sr_hr, 44100)
@@ -92,13 +98,16 @@ class AudioSuperResDataset(Dataset):
             resampler = torchaudio.transforms.Resample(sr_lr, 44100)
             waveform_lr = resampler(waveform_lr)
 
-        # Uniformizar a mono
-        if waveform_hr.size(0) > 1:
-            waveform_hr = waveform_hr.mean(dim=0, keepdim=True)
-        if waveform_lr.size(0) > 1:
-            waveform_lr = waveform_lr.mean(dim=0, keepdim=True)
-
         min_len = min(waveform_hr.size(1), waveform_lr.size(1))
+
+        # Descartar segmentos de silencio (evita sesgar el loss hacia cero)
+        if waveform_hr.abs().max() < 0.01:
+            return self.__getitem__((idx + 1) % len(self))
+
+        # Normalizar a [-1, 1]
+        max_val = max(waveform_hr.abs().max(), waveform_lr.abs().max()) + 1e-8
+        waveform_hr = waveform_hr / max_val
+        waveform_lr = waveform_lr / max_val
 
         # Random Crop o Padding
         if min_len < self.segment_length:
@@ -112,14 +121,6 @@ class AudioSuperResDataset(Dataset):
             start = torch.randint(0, min_len - self.segment_length, (1,)).item()
             waveform_hr = waveform_hr[:, start:start + self.segment_length]
             waveform_lr = waveform_lr[:, start:start + self.segment_length]
-
-        # Normalizar a [-1, 1]
-        waveform_hr = waveform_hr / (waveform_hr.abs().max() + 1e-8)
-        waveform_lr = waveform_lr / (waveform_lr.abs().max() + 1e-8)
-
-        # Descartar segmentos de silencio (evita sesgar el loss hacia cero)
-        if waveform_hr.abs().max() < 0.01:
-            return self.__getitem__((idx + 1) % len(self))
 
         # Calcular STFT de ambas waveforms
         stft_lr = self._waveform_to_stft(waveform_lr)
