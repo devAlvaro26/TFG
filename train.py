@@ -114,16 +114,17 @@ def train():
         scheduler.step(val_loss)
 
         # Guardar mejor modelo según val_loss
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            epochs_no_improve = 0
-            torch.save(model.state_dict(), 'unet2D_superres.pth')
-            print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
-        else:
-            epochs_no_improve += 1
-            if epochs_no_improve >= patience_earlystop:
-                print(f"Early stopping en epoch {epoch+1}")
-                break
+        if epoch >= 5:  # Solo considerar guardar el modelo después de algunas épocas para evitar guardar modelos muy malos al inicio
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+                torch.save(model.state_dict(), 'unet2D_superres.pth')
+                print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
+            else:
+                epochs_no_improve += 1
+                if epochs_no_improve >= patience_earlystop:
+                    print(f"Early stopping en epoch {epoch+1}")
+                    break
 
     print("Entrenamiento completado")
     print(f"Mejor loss alcanzado: {best_val_loss:.6f}")
