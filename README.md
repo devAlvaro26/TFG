@@ -4,7 +4,7 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 
 ## Características
 
-*   **Arquitectura UNet 2D**: Aplicada al procesamiento de la magnitud real e imaginaria del STFT incorporando Attention Gates.
+*   **Arquitectura UNet 2D**: Aplicada al procesamiento de la magnitud real e imaginaria del STFT incorporando `Attention Gates.`
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
 *   **Pérdida Multi-objetivo**: Utiliza `CombinedLoss` (STFTMagnitudeLoss + MelSpectrogramLoss) para optimizar tanto la fidelidad espectral como la percepción auditiva mediante mel-spectrogramas.
 *   **Aprendizaje Residual**: El modelo aprende a predecir el contenido faltante (residuo) y sumandolo a la entrada de baja resolución.
