@@ -7,15 +7,15 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
-from src.loss import STFTMagnitudeLoss
+from src.loss import CombinedLoss
 
 TRAIN_HR_DIR = 'D:/Audio/train/HR'  # Archivos de alta resolución (output de la red)
 TRAIN_LR_DIR = 'D:/Audio/train/LR'  # Archivos de baja resolución (input de la red)
 VAL_HR_DIR = 'D:/Audio/test/HR'     # Archivos de alta resolución para validación
 VAL_LR_DIR = 'D:/Audio/test/LR'     # Archivos de baja resolución para validación
 BATCH_SIZE = 8
-EPOCHS = 150
-LEARNING_RATE = 2e-4
+EPOCHS = 300
+LEARNING_RATE = 1e-4
 
 try:
     import torch_directml
@@ -43,12 +43,11 @@ def evaluate(model, dataloader, criterion, device):
     return total_loss / len(dataloader)
 
 def train():
-    
     if not os.path.exists(TRAIN_HR_DIR) or not os.path.exists(TRAIN_LR_DIR):
         print(f"Error: Por favor, proporcione rutas válidas para {TRAIN_HR_DIR} y {TRAIN_LR_DIR}")
         return
 
-    # Cargar dataset
+    # Cargar datasets
     train_dataset = AudioSuperResDataset(TRAIN_HR_DIR, TRAIN_LR_DIR)
     val_dataset = AudioSuperResDataset(VAL_HR_DIR, VAL_LR_DIR)
 
@@ -57,17 +56,17 @@ def train():
         return
 
     print(f"Dataset de entrenamiento cargado: {len(train_dataset)} archivos")
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, num_workers=os.cpu_count(), shuffle=True, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
     print(f"Dataset de validación cargado: {len(val_dataset)} archivos")
-    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=os.cpu_count(), shuffle=False, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True)
 
     # Inicializar modelo
     model = UNetAudio2D().to(DEVICE)
 
     # Inicializar Loss y Optimizer
-    # STFTMagnitudeLoss (Convergencia espectral + Log-Magnitude L1 + MSE complejo)
+    # CombinedLoss (STFTMagnitudeLoss + MelSpectrogramLoss)
     # Optimizer Adam
-    criterion = STFTMagnitudeLoss(alpha=1.0, beta=1.0, gamma=0.5).to(DEVICE)
+    criterion = CombinedLoss(alpha=1.0, beta=1.0, gamma=0.1, mel_weight=0.5).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999)) 
 
     # Scheduler

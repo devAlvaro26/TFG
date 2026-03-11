@@ -39,6 +39,7 @@ def save_audio(tensor, path, sample_rate):
 
 
 def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
+    """Convierte una forma de onda a un STFT con canales real e imaginario."""
     original_device = waveform.device
     waveform_cpu = waveform.cpu()
     if waveform_cpu.ndim == 2:
@@ -53,10 +54,11 @@ def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
         window=window,
         return_complex=True,
     )
-    # Convert to real/imag stack and move back to original device
+    # Devolver como tensor de 2 canales: real e imaginario, para compatibilidad con el modelo
     return torch.stack([stft.real, stft.imag], dim=0).to(original_device)
 
 def stft_to_waveform(stft_ri, n_fft=N_FFT, hop_length=HOP_LENGTH):
+    """Convierte un STFT con canales real e imaginario de vuelta a forma de onda usando ISTFT."""
     original_device = stft_ri.device
     stft_ri_cpu = stft_ri.cpu()
     
@@ -70,6 +72,16 @@ def stft_to_waveform(stft_ri, n_fft=N_FFT, hop_length=HOP_LENGTH):
         window=window,
     )
     return waveform.unsqueeze(0).to(original_device)
+
+def normalize_stft(stft_ri):
+    """Log-compresión del STFT (misma que en dataset.py)."""
+    sign = torch.sign(stft_ri)
+    return sign * torch.log1p(torch.abs(stft_ri))
+
+def denormalize_stft(stft_ri):
+    """Inversa de la log-compresión: sign(x) * (exp(|x|) - 1)."""
+    sign = torch.sign(stft_ri)
+    return sign * (torch.exp(torch.abs(stft_ri)) - 1)
 
 
 def pad_stft(stft, pool_factor=POOL_FACTOR):
@@ -152,6 +164,7 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, sample_rate, n_fft
 def inference():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+    # Cargar modelo
     print(f"Cargando modelo desde {MODEL_PATH}...")
     model = UNetAudio2D().to(DEVICE)
     try:
@@ -161,6 +174,7 @@ def inference():
         return
     model.eval()
 
+    # Procesar archivos de inferencia
     files = [f for f in os.listdir(INF_DIR) if f.endswith('.wav')]
     if not files:
         print(f"No se encontraron archivos .wav en {INF_DIR}")
@@ -182,6 +196,7 @@ def inference():
                 resamplers[original_sr] = torchaudio.transforms.Resample(original_sr, TARGET_SR)
             waveform = resamplers[original_sr](waveform)
 
+        # Pasar a mono
         if waveform.size(0) > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
 
@@ -192,15 +207,18 @@ def inference():
         original_length = waveform_norm.size(1)
         input_for_plot = waveform_norm.clone()
 
-        # STFT -> Modelo -> ISTFT
+        # STFT -> Normalizar -> Modelo -> Desnormalizar -> ISTFT
         stft_input = waveform_to_stft(waveform_norm.to(DEVICE))
+        stft_input = normalize_stft(stft_input)  # Log-compresión (igual que en dataset)
         stft_padded, orig_f, orig_t = pad_stft(stft_input)
         stft_batch = stft_padded.unsqueeze(0)
 
+        # Inferencia
         with torch.no_grad():
             predicted_stft = model(stft_batch)
 
         predicted_stft = predicted_stft.squeeze(0)[:, :orig_f, :orig_t]
+        predicted_stft = denormalize_stft(predicted_stft)  # Inversa de log-compresión
         predicted_waveform = stft_to_waveform(predicted_stft)
 
         # Truncar a longitud original
@@ -216,9 +234,11 @@ def inference():
         save_path = os.path.join(OUTPUT_DIR, base_name)
         os.makedirs(save_path, exist_ok=True)
 
+        # Copiar el archivo de entrada original para referencia
         shutil.copy2(file_path, os.path.join(save_path, 'input.wav'))
         save_audio(predicted_waveform, os.path.join(save_path, 'super_res.wav'), TARGET_SR)
 
+        # Guardar gráficos de forma de onda y espectrograma
         save_waveform_plot(
             input_for_plot,
             predicted_norm,

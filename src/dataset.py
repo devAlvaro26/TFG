@@ -57,6 +57,15 @@ class AudioSuperResDataset(Dataset):
         stft_ri = torch.stack([stft.real, stft.imag], dim=0)
         return stft_ri
 
+    def _normalize_stft(self, stft_ri):
+        """
+        Log-compresión del STFT para reducir el rango dinámico.
+        Preserva el signo: sign(x) * log1p(|x|)
+        Esto facilita enormemente la convergencia de la red.
+        """
+        sign = torch.sign(stft_ri)
+        return sign * torch.log1p(torch.abs(stft_ri))
+
     def _pad_stft_to_pool_factor(self, stft):
         """
         Asegura que tanto F como T sean divisibles por pool_factor.
@@ -98,6 +107,10 @@ class AudioSuperResDataset(Dataset):
             resampler = torchaudio.transforms.Resample(sr_lr, 44100)
             waveform_lr = resampler(waveform_lr)
 
+        # Asegurar que los archivos HR y LR tengan la misma longitud
+        if len(waveform_hr) != len(waveform_lr):
+            raise ValueError("Los archivos HR y LR no tienen la misma longitud.")
+
         min_len = min(waveform_hr.size(1), waveform_lr.size(1))
 
         # Descartar segmentos de silencio (evita sesgar el loss hacia cero)
@@ -125,6 +138,10 @@ class AudioSuperResDataset(Dataset):
         # Calcular STFT de ambas waveforms
         stft_lr = self._waveform_to_stft(waveform_lr)
         stft_hr = self._waveform_to_stft(waveform_hr)
+
+        # Normalizar STFT con log-compresión para reducir rango dinámico
+        stft_lr = self._normalize_stft(stft_lr)
+        stft_hr = self._normalize_stft(stft_hr)
 
         # Asegurar que F y T son divisibles por pool_factor (16)
         stft_lr = self._pad_stft_to_pool_factor(stft_lr)

@@ -70,7 +70,7 @@ class UNetAudio2D(nn.Module):
     def conv_block(self, in_ch, out_ch):
         return nn.Sequential(
             nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1),
-            nn.GroupNorm(num_groups=out_ch//4, num_channels=out_ch),
+            nn.GroupNorm(num_groups=out_ch//4, num_channels=out_ch),    # GroupNorm en lugar de BatchNorm para mejor estabilidad con batch sizes pequeños
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1),
             nn.GroupNorm(num_groups=out_ch//4, num_channels=out_ch),
