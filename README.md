@@ -4,9 +4,9 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 
 ## Características
 
-*   **Arquitectura UNet 2D**: Aplicada al procesamiento de la magnitud real e imaginaria del STFT incorporando `Attention Gates.`
+*   **Arquitectura UNet 2D**: Aplicada al procesamiento de la magnitud real e imaginaria del STFT incorporando `Attention Gates` y `Dilated Convolutions`.
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
-*   **Pérdida Multi-objetivo**: Utiliza `CombinedLoss` (STFTMagnitudeLoss + MelSpectrogramLoss) para optimizar tanto la fidelidad espectral como la percepción auditiva mediante mel-spectrogramas.
+*   **Pérdida Multi-objetivo**: Utiliza `CombinedLoss` (MultiResSTFT, Pérdida compleja y HF-Loss) para calcular la pérdida.
 *   **Aprendizaje Residual**: El modelo aprende a predecir el contenido faltante (residuo) y sumandolo a la entrada de baja resolución.
 *   **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
@@ -29,13 +29,17 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 ├── src/
 │   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a STFT
 │   ├── model.py            # Definición de UNetAudio2D + AttentionGate
-│   ├── loss.py             # CombinedLoss (STFT + Mel-Spectrogram) con énfasis frecuencial
+│   ├── loss.py             # CombinedLoss (MultiResSTFT, Pérdida compleja y HF-Loss)
 │   └── downgrade.py        # Herramienta para generar pares LR desde HR
 ├── train.py                # Script de entrenamiento con Scheduler y Early Stopping
 ├── inference.py            # Script para ejecución y visualización de resultados
 ├── requirements.txt        # Dependencias del proyecto
 └── unet2D_superres.pth     # Checkpoint del mejor modelo guardado
 ```
+
+## Modelos entrenados
+
+*   [Repositorio modelo entrenado](https://drive.google.com/file/d/1iho1OBC-UG6cvvr_CS7q-tZ7x86Dp1Qm/view?usp=sharing)
 
 ## Instalación
 
@@ -85,6 +89,12 @@ Para probar el modelo en nuevos archivos de audio:
     *   `super_res.wav`: La salida super-resuelta del modelo.
     *   `waveform.png`: Una comparación visual de las formas de onda.
     *   `spectrogram.png`: Una comparación visual de los espectrogramas.
+
+## Papers de referencia
+
+*   [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([https://github.com/kuleshov/audio-super-res](https://github.com/kuleshov/audio-super-res))
+*   [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([https://github.com/aero-asr/aero](https://github.com/aero-asr/aero))
+*   [Audio Segmentation with U-Net architecture](https://stanford.edu/class/ee367/Winter2024/report/report_Andrew_Romero.pdf)
 
 ## Requisitos
 

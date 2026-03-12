@@ -13,7 +13,7 @@ TRAIN_HR_DIR = 'D:/Audio/train/HR'  # Archivos de alta resolución (output de la
 TRAIN_LR_DIR = 'D:/Audio/train/LR'  # Archivos de baja resolución (input de la red)
 VAL_HR_DIR = 'D:/Audio/test/HR'     # Archivos de alta resolución para validación
 VAL_LR_DIR = 'D:/Audio/test/LR'     # Archivos de baja resolución para validación
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 EPOCHS = 300
 LEARNING_RATE = 1e-4
 
@@ -43,9 +43,12 @@ def evaluate(model, dataloader, criterion, device):
     return total_loss / len(dataloader)
 
 def train():
-    if not os.path.exists(TRAIN_HR_DIR) or not os.path.exists(TRAIN_LR_DIR):
-        print(f"Error: Por favor, proporcione rutas válidas para {TRAIN_HR_DIR} y {TRAIN_LR_DIR}")
-        return
+    "Entrenar el modelo"
+    dirs_to_check = [TRAIN_HR_DIR, TRAIN_LR_DIR, VAL_HR_DIR, VAL_LR_DIR]
+    for d in dirs_to_check:
+        if not os.path.exists(d):
+            print(f"Error: directorio no encontrado: {d}")
+            return
 
     # Cargar datasets
     train_dataset = AudioSuperResDataset(TRAIN_HR_DIR, TRAIN_LR_DIR)
@@ -64,13 +67,13 @@ def train():
     model = UNetAudio2D().to(DEVICE)
 
     # Inicializar Loss y Optimizer
-    # CombinedLoss (STFTMagnitudeLoss + MelSpectrogramLoss)
+    # Loss combinada de MRSTFT, HF y pérdida compleja
     # Optimizer Adam
-    criterion = CombinedLoss(alpha=1.0, beta=1.0, gamma=0.1, mel_weight=0.5).to(DEVICE)
+    criterion = CombinedLoss(lambda_mrstft = 1.0,lambda_hf = 2.0,lambda_complex = 0.5).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999)) 
 
     # Scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=15)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
 
     print(f"Iniciando entrenamiento en {DEVICE}...")
 

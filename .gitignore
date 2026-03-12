@@ -1,3 +1,5 @@
 src/__pycache__/
 src/*.pyc
-.githhub/
+.github/
+.github/*.md
+*.pth

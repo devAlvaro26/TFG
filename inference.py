@@ -2,10 +2,10 @@
 # Este script cargará el modelo entrenado y generará resultados
 
 import os
-import shutil
 import torch
 import torchaudio
 import numpy as np
+from shutil import copy2
 import matplotlib.pyplot as plt
 from src.model import UNetAudio2D
 
@@ -33,6 +33,7 @@ HOP_LENGTH = 256        # Salto entre ventanas STFT
 
 
 def save_audio(tensor, path, sample_rate):
+    """Guarda una forma de onda en un archivo de audio."""
     if tensor.ndim == 3:
         tensor = tensor.squeeze(0)
     torchaudio.save(path, tensor.cpu(), sample_rate, bits_per_sample=16, encoding="PCM_S")
@@ -54,7 +55,7 @@ def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
         window=window,
         return_complex=True,
     )
-    # Devolver como tensor de 2 canales: real e imaginario, para compatibilidad con el modelo
+    # Devolver como tensor de 2 canales: real e imaginario
     return torch.stack([stft.real, stft.imag], dim=0).to(original_device)
 
 def stft_to_waveform(stft_ri, n_fft=N_FFT, hop_length=HOP_LENGTH):
@@ -74,7 +75,7 @@ def stft_to_waveform(stft_ri, n_fft=N_FFT, hop_length=HOP_LENGTH):
     return waveform.unsqueeze(0).to(original_device)
 
 def normalize_stft(stft_ri):
-    """Log-compresión del STFT (misma que en dataset.py)."""
+    """Log-compresión del STFT."""
     sign = torch.sign(stft_ri)
     return sign * torch.log1p(torch.abs(stft_ri))
 
@@ -85,6 +86,7 @@ def denormalize_stft(stft_ri):
 
 
 def pad_stft(stft, pool_factor=POOL_FACTOR):
+    """Ajusta el STFT para que sea divisible por el factor de pooling."""
     _, freq_bins, time_frames = stft.shape
     pad_f = (pool_factor - (freq_bins % pool_factor)) % pool_factor
     pad_t = (pool_factor - (time_frames % pool_factor)) % pool_factor
@@ -96,6 +98,7 @@ def pad_stft(stft, pool_factor=POOL_FACTOR):
 
 
 def save_waveform_plot(lr, sr, filename, sample_rate):
+    """Genera un gráfico de la forma de onda de entrada y salida."""
     wave_lr = lr.squeeze().cpu().numpy()
     wave_sr = sr.squeeze().cpu().numpy()
 
@@ -123,6 +126,7 @@ def save_waveform_plot(lr, sr, filename, sample_rate):
 
 
 def save_spectrogram_plot(lr_waveform, sr_waveform, filename, sample_rate, n_fft=N_FFT, hop_length=HOP_LENGTH):
+    """Genera un gráfico del espectrograma de entrada y salida."""
     spec_transform = torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length, power=2)
 
     spec_lr = spec_transform(lr_waveform.cpu()).squeeze().numpy()
@@ -162,6 +166,7 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, sample_rate, n_fft
 
 
 def inference():
+    """Realiza inferencia en los archivos de entrada y guardar los resultados."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # Cargar modelo
@@ -235,7 +240,7 @@ def inference():
         os.makedirs(save_path, exist_ok=True)
 
         # Copiar el archivo de entrada original para referencia
-        shutil.copy2(file_path, os.path.join(save_path, 'input.wav'))
+        copy2(file_path, os.path.join(save_path, 'input.wav'))
         save_audio(predicted_waveform, os.path.join(save_path, 'super_res.wav'), TARGET_SR)
 
         # Guardar gráficos de forma de onda y espectrograma
@@ -261,7 +266,9 @@ def inference():
 if __name__ == "__main__":
     try:
         inference()
-    except:
+    except KeyboardInterrupt:
+        exit()
+    except Exception as e:
         DEVICE = 'cpu'
-        print("Error durante la inferencia. Intentando en CPU...")
+        print(f"Error durante la inferencia. Intentando en CPU...\n{e}")
         inference()
