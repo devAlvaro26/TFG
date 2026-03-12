@@ -90,11 +90,11 @@ Para probar el modelo en nuevos archivos de audio:
     *   `waveform.png`: Una comparación visual de las formas de onda.
     *   `spectrogram.png`: Una comparación visual de los espectrogramas.
 
-## Papers de referencia
+## Papers y proyectos de referencia
 
-*   [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([https://github.com/kuleshov/audio-super-res](https://github.com/kuleshov/audio-super-res))
-*   [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([https://github.com/aero-asr/aero](https://github.com/aero-asr/aero))
-*   [Audio Segmentation with U-Net architecture](https://stanford.edu/class/ee367/Winter2024/report/report_Andrew_Romero.pdf)
+*   [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([GitHub](https://github.com/kuleshov/audio-super-res))
+*   [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([GitHub](https://github.com/slp-rl/aero))
+*   [Versatile_Audio_Super_Resolution](https://github.com/haoheliu/versatile_audio_super_resolution)
 
 ## Requisitos
 
