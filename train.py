@@ -43,7 +43,7 @@ def evaluate(model, dataloader, criterion, device):
     return total_loss / len(dataloader)
 
 def train():
-    "Entrenar el modelo"
+    """Entrenar el modelo"""
     dirs_to_check = [TRAIN_HR_DIR, TRAIN_LR_DIR, VAL_HR_DIR, VAL_LR_DIR]
     for d in dirs_to_check:
         if not os.path.exists(d):
@@ -68,9 +68,9 @@ def train():
 
     # Inicializar Loss y Optimizer
     # Loss combinada de MRSTFT, HF y pérdida compleja
-    # Optimizer Adam
+    # Optimizer AdamW
     criterion = CombinedLoss(lambda_mrstft = 1.0,lambda_hf = 2.0,lambda_complex = 0.5).to(DEVICE)
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.9, 0.999)) 
+    optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4, betas=(0.9, 0.999)) 
 
     # Scheduler
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
@@ -110,7 +110,7 @@ def train():
         # Evaluar en el conjunto de validación
         val_loss = evaluate(model, val_dataloader, criterion, DEVICE)
 
-        print(f"Epoch [{epoch+1}/{EPOCHS}] Train: {train_loss:.6f} | Val: {val_loss:.6f} | LR: {optimizer.param_groups[0]['lr']:.6f}")
+        print(f"Epoch [{epoch+1}/{EPOCHS}] Train: {train_loss:.6f} | Val: {val_loss:.6f} | LR: {optimizer.param_groups[0]['lr']:.8f}")
 
         # Scheduler basado en val_loss
         scheduler.step(val_loss)
@@ -120,7 +120,7 @@ def train():
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 epochs_no_improve = 0
-                torch.save(model.state_dict(), 'unet2D_superres.pth')
+                torch.save(model.state_dict(), 'unet2D_superres.pt')
                 print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
             else:
                 epochs_no_improve += 1

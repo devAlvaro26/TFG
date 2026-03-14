@@ -9,17 +9,18 @@ from torch.utils.data import Dataset
 
 
 class AudioSuperResDataset(Dataset):
-    def __init__(self, hr_dir, lr_dir, segment_length=65536, n_fft=1024, hop_length=256):
-        """
-        Clase para cargar pares de audio (Alta Calidad - HR y Baja Calidad - LR)
-        y devolver sus representaciones STFT.
+    """
+    Cargar pares de audio (Alta Calidad - HR y Baja Calidad - LR)
+    y devolver sus representaciones STFT.
 
-        hr_dir: Directorio de los archivos en alta calidad (Ground Truth)
-        lr_dir: Directorio de los archivos en baja calidad (Input)
-        segment_length: Longitud del segmento de audio para el entrenamiento (en muestras). Debe ser compatible con n_fft y hop_length.
-        n_fft: Tamaño de la FFT para el STFT.
-        hop_length: Salto entre ventanas STFT.
-        """
+    hr_dir: Directorio de los archivos en alta calidad (Ground Truth)
+    lr_dir: Directorio de los archivos en baja calidad (Input)
+    segment_length: Longitud del segmento de audio para el entrenamiento (en muestras). Debe ser compatible con n_fft y hop_length.
+    n_fft: Tamaño de la FFT para el STFT.
+    hop_length: Salto entre ventanas STFT.
+    """
+    def __init__(self, hr_dir, lr_dir, segment_length=65536, n_fft=1024, hop_length=256):
+
         self.hr_dir = hr_dir
         self.lr_dir = lr_dir
         self.segment_length = segment_length
@@ -43,7 +44,6 @@ class AudioSuperResDataset(Dataset):
         Convierte una waveform (1, L) a un tensor STFT de shape (2, F, T)
         donde canal 0 = parte real y canal 1 = parte imaginaria.
         """
-        # STFT
         stft = torch.stft(
             waveform.squeeze(0),          #(L,)
             n_fft=self.n_fft,
@@ -61,7 +61,6 @@ class AudioSuperResDataset(Dataset):
         """
         Log-compresión del STFT para reducir el rango dinámico.
         Preserva el signo: sign(x) * log1p(|x|)
-        Esto facilita enormemente la convergencia de la red.
         """
         sign = torch.sign(stft_ri)
         return sign * torch.log1p(torch.abs(stft_ri))

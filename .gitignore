@@ -3,3 +3,4 @@ src/*.pyc
 .github/
 .github/*.md
 *.pth
+*.pt

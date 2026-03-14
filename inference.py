@@ -9,7 +9,7 @@ from shutil import copy2
 import matplotlib.pyplot as plt
 from src.model import UNetAudio2D
 
-MODEL_PATH = 'unet2D_superres.pth'  # Archivo del modelo entrenado
+MODEL_PATH = 'unet2D_superres.pt'   # Archivo del modelo entrenado
 INF_DIR = './data/inference'        # Archivos de entrada
 OUTPUT_DIR = './results'            # Archivos de salida
 
@@ -58,12 +58,11 @@ def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
     # Devolver como tensor de 2 canales: real e imaginario
     return torch.stack([stft.real, stft.imag], dim=0).to(original_device)
 
-def stft_to_waveform(stft_ri, n_fft=N_FFT, hop_length=HOP_LENGTH):
+def stft_to_waveform(stft, n_fft=N_FFT, hop_length=HOP_LENGTH, device=DEVICE):
     """Convierte un STFT con canales real e imaginario de vuelta a forma de onda usando ISTFT."""
-    original_device = stft_ri.device
-    stft_ri_cpu = stft_ri.cpu()
+    stft_cpu = stft.cpu()
     
-    stft_complex = torch.complex(stft_ri_cpu[0], stft_ri_cpu[1])
+    stft_complex = torch.complex(stft_cpu[0], stft_cpu[1])
     window = torch.hann_window(n_fft, device='cpu')
     waveform = torch.istft(
         stft_complex,
@@ -72,17 +71,18 @@ def stft_to_waveform(stft_ri, n_fft=N_FFT, hop_length=HOP_LENGTH):
         win_length=n_fft,
         window=window,
     )
-    return waveform.unsqueeze(0).to(original_device)
+    return waveform.unsqueeze(0).to(device)
 
-def normalize_stft(stft_ri):
+
+def normalize_stft(stft):
     """Log-compresión del STFT."""
-    sign = torch.sign(stft_ri)
-    return sign * torch.log1p(torch.abs(stft_ri))
+    sign = torch.sign(stft)
+    return sign * torch.log1p(torch.abs(stft))
 
-def denormalize_stft(stft_ri):
+def denormalize_stft(stft):
     """Inversa de la log-compresión: sign(x) * (exp(|x|) - 1)."""
-    sign = torch.sign(stft_ri)
-    return sign * (torch.exp(torch.abs(stft_ri)) - 1)
+    sign = torch.sign(stft)
+    return sign * (torch.exp(torch.abs(stft)) - 1)
 
 
 def pad_stft(stft, pool_factor=POOL_FACTOR):

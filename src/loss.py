@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def stft_mag(x, fft_size, hop_size, win_length):
+def stft_mag(x, n_fft, hop_length, win_length):
     """Calcula el STFT y devuelve la magnitud."""
     device = x.device
     x = x.cpu()
@@ -15,8 +15,8 @@ def stft_mag(x, fft_size, hop_size, win_length):
 
     stft_res = torch.stft(
         x,
-        n_fft=fft_size,
-        hop_length=hop_size,
+        n_fft=n_fft,
+        hop_length=hop_length,
         win_length=win_length,
         window=window,
         return_complex=True
@@ -41,20 +41,20 @@ class LogMagnitudeLoss(nn.Module):
 
 class STFTLoss(nn.Module):
     """Pérdida STFT."""
-    def __init__(self, fft_size, hop_size, win_length):
+    def __init__(self, n_fft, hop_length, win_length):
 
         super().__init__()
 
-        self.fft_size = fft_size
-        self.hop_size = hop_size
+        self.n_fft = n_fft
+        self.hop_length = hop_length
         self.win_length = win_length
 
         self.sc_loss = SpectralConvergenceLoss()
         self.mag_loss = LogMagnitudeLoss()
 
     def forward(self, x, y):
-        x_mag = stft_mag(x, self.fft_size, self.hop_size, self.win_length)
-        y_mag = stft_mag(y, self.fft_size, self.hop_size, self.win_length)
+        x_mag = stft_mag(x, self.n_fft, self.hop_length, self.win_length)
+        y_mag = stft_mag(y, self.n_fft, self.hop_length, self.win_length)
 
         sc = self.sc_loss(x_mag, y_mag)
         mag = self.mag_loss(x_mag, y_mag)
@@ -107,7 +107,7 @@ class HighFrequencyLoss(nn.Module):
 
 
 class CombinedLoss(nn.Module):
-    """Pérdida combinada de las anteriores."""
+    """Pérdida combinada de MRSTFT, HF y Complex."""
     def __init__(self, lambda_mrstft=1.0, lambda_hf=1.5, lambda_complex=0.5):
 
         super().__init__()
@@ -142,7 +142,7 @@ class CombinedLoss(nn.Module):
         # HF loss
         hf = self.hf_loss(pred_mag, tgt_mag)
 
-        # Reconstruir audio aproximado (ISTFT simplificada)
+        # Reconstruir audio ISTFT
         device = pred.device
         pred_complex = torch.complex(pred_real.cpu(), pred_imag.cpu())
         tgt_complex = torch.complex(tgt_real.cpu(), tgt_imag.cpu())
