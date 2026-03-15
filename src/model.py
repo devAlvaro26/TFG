@@ -20,10 +20,10 @@ class AttentionGate(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, g, x):
-        # Interpola g para que tenga el mismo tamaño que x
+        # Interpolar g para que tenga el mismo tamaño que x
         if g.shape[-2:] != x.shape[-2:]:
             g = F.interpolate(g, size=x.shape[-2:], mode="bilinear", align_corners=False)
-        # Calcula la atención
+        # Calcular la atención
         att = self.sigmoid(self.psi(self.relu(self.W_g(g) + self.W_x(x))))
 
         return x * att
@@ -55,7 +55,7 @@ class UNetAudio2D(nn.Module):
         super().__init__()
 
         # Encoder
-        # Entrada: (B, 2, F, T) — 2 canales: real e imaginario
+        # Entrada: (B, 2, F, T)
         self.enc1 = self.conv_block(2, 32)
         self.pool1 = nn.MaxPool2d((1,2))
 

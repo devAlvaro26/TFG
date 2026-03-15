@@ -31,11 +31,22 @@ POOL_FACTOR = 16        # 2^4 para 4 capas de pooling en UNet 2D
 N_FFT = 1024            # Tamaño de la FFT para STFT
 HOP_LENGTH = 256        # Salto entre ventanas STFT
 
+# VOCODER para reconstrucción de fase (Opcional)
+try:
+    from bigvganinference import BigVGANInference
+    from bigvganinference.meldataset import get_mel_spectrogram
+    # bigvganinference para usar el modelo BigVGAN de NVIDIA y ajustar la fase
+    # https://github.com/NVIDIA/BigVGAN
+    HAS_BIGVGAN = True
+except ImportError:
+    HAS_BIGVGAN = False
 
 def save_audio(tensor, path, sample_rate):
     """Guarda una forma de onda en un archivo de audio."""
     if tensor.ndim == 3:
         tensor = tensor.squeeze(0)
+    elif tensor.ndim == 1:
+        tensor = tensor.unsqueeze(0)
     torchaudio.save(path, tensor.cpu(), sample_rate, bits_per_sample=16, encoding="PCM_S")
 
 
@@ -58,10 +69,10 @@ def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
     # Devolver como tensor de 2 canales: real e imaginario
     return torch.stack([stft.real, stft.imag], dim=0).to(original_device)
 
-def stft_to_waveform(stft, n_fft=N_FFT, hop_length=HOP_LENGTH, device=DEVICE):
+def stft_to_waveform(stft, n_fft=N_FFT, hop_length=HOP_LENGTH, length=None):
     """Convierte un STFT con canales real e imaginario de vuelta a forma de onda usando ISTFT."""
     stft_cpu = stft.cpu()
-    
+
     stft_complex = torch.complex(stft_cpu[0], stft_cpu[1])
     window = torch.hann_window(n_fft, device='cpu')
     waveform = torch.istft(
@@ -70,8 +81,9 @@ def stft_to_waveform(stft, n_fft=N_FFT, hop_length=HOP_LENGTH, device=DEVICE):
         hop_length=hop_length,
         win_length=n_fft,
         window=window,
+        length=length,  # Forzar longitud exacta para evitar desfases en el corte
     )
-    return waveform.unsqueeze(0).to(device)
+    return waveform.unsqueeze(0)  # (1, T)
 
 
 def normalize_stft(stft):
@@ -179,6 +191,13 @@ def inference():
         return
     model.eval()
 
+    # Cargar BigVGAN si está disponible
+    if HAS_BIGVGAN:
+        vocoder = BigVGANInference.from_pretrained(f"nvidia/bigvgan_v2_44khz_128band_{HOP_LENGTH}x").to(DEVICE)
+        vocoder.eval()
+    else:
+        print("BigVGAN no está disponible. Se usará la reconstrucción directa.")
+
     # Procesar archivos de inferencia
     files = [f for f in os.listdir(INF_DIR) if f.endswith('.wav')]
     if not files:
@@ -212,48 +231,67 @@ def inference():
         original_length = waveform_norm.size(1)
         input_for_plot = waveform_norm.clone()
 
-        # STFT -> Normalizar -> Modelo -> Desnormalizar -> ISTFT
+        # Preparación STFT
         stft_input = waveform_to_stft(waveform_norm.to(DEVICE))
         stft_input = normalize_stft(stft_input)  # Log-compresión (igual que en dataset)
         stft_padded, orig_f, orig_t = pad_stft(stft_input)
         stft_batch = stft_padded.unsqueeze(0)
 
-        # Inferencia
+        # Inferencia U-Net
         with torch.no_grad():
             predicted_stft = model(stft_batch)
 
         predicted_stft = predicted_stft.squeeze(0)[:, :orig_f, :orig_t]
         predicted_stft = denormalize_stft(predicted_stft)  # Inversa de log-compresión
-        predicted_waveform = stft_to_waveform(predicted_stft)
 
-        # Truncar a longitud original
-        predicted_waveform = predicted_waveform[:, :original_length].cpu()
+        # ISTFT con longitud exacta para evitar artefactos de corte
+        predicted_waveform = stft_to_waveform(predicted_stft, length=original_length)  # (1, T)
 
-        # Guardar predicción normalizada para gráficos
-        predicted_norm = predicted_waveform.clone()
+        # Prevención de valores NaN o infinitos que puedan surgir por la red o la ISTFT
+        predicted_waveform = torch.nan_to_num(predicted_waveform, nan=0.0, posinf=1.0, neginf=-1.0)
+        predicted_waveform = torch.clamp(predicted_waveform, -1.0, 1.0)
 
-        # Denormalizar y guardar audio
-        predicted_waveform = (predicted_waveform * max_val).clamp(-1.0, 1.0)
+        # Inferencia VOCODER BigVGAN
+        if HAS_BIGVGAN:
+            with torch.no_grad():
+                # get_mel_spectrogram espera waveform con shape (1, T)
+                mel_for_bigvgan = get_mel_spectrogram(predicted_waveform, vocoder.h).to(DEVICE)
+                # Sintetizar la onda usando BigVGAN
+                waveform_bigvgan = vocoder(mel_for_bigvgan).squeeze(0).cpu()  # (1, T)
+                waveform_bigvgan = waveform_bigvgan[:, :original_length]
+
+                # Sanitize BigVGAN output
+                waveform_bigvgan = torch.nan_to_num(waveform_bigvgan, nan=0.0, posinf=1.0, neginf=-1.0)
+                waveform_bigvgan = torch.clamp(waveform_bigvgan, -1.0, 1.0)
 
         base_name = os.path.splitext(filename)[0]
         save_path = os.path.join(OUTPUT_DIR, base_name)
         os.makedirs(save_path, exist_ok=True)
 
-        # Copiar el archivo de entrada original para referencia
+        # Guardar resultados
         copy2(file_path, os.path.join(save_path, 'input.wav'))
         save_audio(predicted_waveform, os.path.join(save_path, 'super_res.wav'), TARGET_SR)
+
+        if HAS_BIGVGAN:
+            save_audio(waveform_bigvgan, os.path.join(save_path, 'super_res_BigVGAN.wav'), TARGET_SR)
+            save_spectrogram_plot(
+                input_for_plot,
+                waveform_bigvgan,
+                os.path.join(save_path, 'spectrogram_bigvgan.png'),
+                sample_rate=TARGET_SR,
+            )
 
         # Guardar gráficos de forma de onda y espectrograma
         save_waveform_plot(
             input_for_plot,
-            predicted_norm,
+            predicted_waveform,
             os.path.join(save_path, 'waveform.png'),
             TARGET_SR,
         )
 
         save_spectrogram_plot(
             input_for_plot,
-            predicted_norm,
+            predicted_waveform,
             os.path.join(save_path, 'spectrogram.png'),
             sample_rate=TARGET_SR,
         )

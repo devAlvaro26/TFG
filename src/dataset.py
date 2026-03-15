@@ -7,6 +7,9 @@ import torchaudio
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
+NFFT = 1024
+HOP_LENGTH = 256
+SEGMENT_LENGTH = 65536
 
 class AudioSuperResDataset(Dataset):
     """
@@ -19,7 +22,7 @@ class AudioSuperResDataset(Dataset):
     n_fft: Tamaño de la FFT para el STFT.
     hop_length: Salto entre ventanas STFT.
     """
-    def __init__(self, hr_dir, lr_dir, segment_length=65536, n_fft=1024, hop_length=256):
+    def __init__(self, hr_dir, lr_dir, segment_length=SEGMENT_LENGTH, n_fft=NFFT, hop_length=HOP_LENGTH):
 
         self.hr_dir = hr_dir
         self.lr_dir = lr_dir
@@ -30,7 +33,10 @@ class AudioSuperResDataset(Dataset):
         # POOL_FACTOR = 2^4 = 16 (4 capas de pooling en la UNet 2D)
         self.pool_factor = 16
 
-        # Contar ficheros automaticamente
+        # Cache de resamplers
+        self._resamplers = {}
+
+        # Contar ficheros
         self.files = [
             f for f in os.listdir(hr_dir)
             if f.endswith('.wav') and os.path.exists(os.path.join(lr_dir, f))
@@ -99,12 +105,14 @@ class AudioSuperResDataset(Dataset):
 
         # Forzar 44.1kHz en ambos para alinear cortes
         if sr_hr != 44100:
-            resampler = torchaudio.transforms.Resample(sr_hr, 44100)
-            waveform_hr = resampler(waveform_hr)
+            if sr_hr not in self._resamplers:
+                self._resamplers[sr_hr] = torchaudio.transforms.Resample(sr_hr, 44100)
+            waveform_hr = self._resamplers[sr_hr](waveform_hr)
 
         if sr_lr != 44100:
-            resampler = torchaudio.transforms.Resample(sr_lr, 44100)
-            waveform_lr = resampler(waveform_lr)
+            if sr_lr not in self._resamplers:
+                self._resamplers[sr_lr] = torchaudio.transforms.Resample(sr_lr, 44100)
+            waveform_lr = self._resamplers[sr_lr](waveform_lr)
 
         min_len = min(waveform_hr.size(1), waveform_lr.size(1))
 

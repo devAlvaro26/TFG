@@ -6,8 +6,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+NFFT = 1024
+HOP_LENGTH = 256
+WIN_LENGTH = 1024
 
-def stft_mag(x, n_fft, hop_length, win_length):
+def stft_mag(x, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH):
     """Calcula el STFT y devuelve la magnitud."""
     device = x.device
     x = x.cpu()
@@ -41,7 +44,7 @@ class LogMagnitudeLoss(nn.Module):
 
 class STFTLoss(nn.Module):
     """Pérdida STFT."""
-    def __init__(self, n_fft, hop_length, win_length):
+    def __init__(self, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH):
 
         super().__init__()
 
@@ -92,7 +95,7 @@ class MultiResolutionSTFTLoss(nn.Module):
 
 class HighFrequencyLoss(nn.Module):
     """Pérdida de alta frecuencia."""
-    def __init__(self, sr=44100, n_fft=1024, fmin=4000):
+    def __init__(self, sr=44100, n_fft=NFFT, fmin=4000):
 
         super().__init__()
 
@@ -119,6 +122,11 @@ class CombinedLoss(nn.Module):
         self.mrstft = MultiResolutionSTFTLoss()
         self.hf_loss = HighFrequencyLoss()
 
+    def denormalize(self, stft):
+        """Inversa de la log-compresión: sign(x) * (exp(|x|) - 1)."""
+        sign = torch.sign(stft)
+        return sign * (torch.exp(torch.abs(stft)) - 1)
+
     def forward(self, pred, target):
         # pred/target shape (B,2,F,T)
         
@@ -127,29 +135,33 @@ class CombinedLoss(nn.Module):
         pred = pred[:, :, :valid_f, :]
         target = target[:, :, :valid_f, :]
 
-        pred_real = pred[:,0]
-        pred_imag = pred[:,1]
+        # complex L1
+        complex_l1 = F.l1_loss(pred, target)
 
-        tgt_real = target[:,0]
-        tgt_imag = target[:,1]
+        # Desnormalizar
+        pred_denorm = self.denormalize(pred)
+        target_denorm = self.denormalize(target)
+
+        pred_real = pred_denorm[:,0]
+        pred_imag = pred_denorm[:,1]
+
+        tgt_real = target_denorm[:,0]
+        tgt_imag = target_denorm[:,1]
 
         pred_mag = torch.sqrt(pred_real**2 + pred_imag**2 + 1e-8)
         tgt_mag = torch.sqrt(tgt_real**2 + tgt_imag**2 + 1e-8)
 
-        # complex L1
-        complex_l1 = F.l1_loss(pred, target)
-
         # HF loss
         hf = self.hf_loss(pred_mag, tgt_mag)
 
-        # Reconstruir audio ISTFT
+        # Reconstruir audio con ISTFT
         device = pred.device
         pred_complex = torch.complex(pred_real.cpu(), pred_imag.cpu())
         tgt_complex = torch.complex(tgt_real.cpu(), tgt_imag.cpu())
 
-        window = torch.hann_window(1024).cpu()
-        pred_audio = torch.istft(pred_complex, n_fft=1024, hop_length=256, window=window).to(device)
-        tgt_audio = torch.istft(tgt_complex, n_fft=1024, hop_length=256, window=window).to(device)
+        window = torch.hann_window(NFFT).cpu()
+        pred_audio = torch.istft(pred_complex, n_fft=NFFT, hop_length=HOP_LENGTH, window=window).to(device)
+        tgt_audio = torch.istft(tgt_complex, n_fft=NFFT, hop_length=HOP_LENGTH, window=window).to(device)
 
         sc, mag = self.mrstft(pred_audio, tgt_audio)
 

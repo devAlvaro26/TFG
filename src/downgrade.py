@@ -1,6 +1,6 @@
 import os
 import torchaudio
-import torchaudio.functional as F
+from torchaudio import functional as F
 
 HR_DIR = './data/train/HR'
 LR_DIR = './data/train/LR'

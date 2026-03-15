@@ -9,12 +9,12 @@ from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
 from src.loss import CombinedLoss
 
-TRAIN_HR_DIR = 'D:/Audio/train/HR'  # Archivos de alta resolución (output de la red)
-TRAIN_LR_DIR = 'D:/Audio/train/LR'  # Archivos de baja resolución (input de la red)
-VAL_HR_DIR = 'D:/Audio/test/HR'     # Archivos de alta resolución para validación
-VAL_LR_DIR = 'D:/Audio/test/LR'     # Archivos de baja resolución para validación
+TRAIN_HR_DIR = './data/train/HR'  # Archivos de alta resolución (output de la red)
+TRAIN_LR_DIR = './data/train/LR'  # Archivos de baja resolución (input de la red)
+VAL_HR_DIR = './data/test/HR'     # Archivos de alta resolución para validación
+VAL_LR_DIR = './data/test/LR'     # Archivos de baja resolución para validación
 BATCH_SIZE = 4
-EPOCHS = 300
+EPOCHS = 500
 LEARNING_RATE = 1e-4
 
 try:

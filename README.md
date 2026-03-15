@@ -1,4 +1,4 @@
-# Superresolución de Audio con UNet 2D
+# SuperResolución de Audio con UNet 2D
 
 Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a 44.1kHz.
 
@@ -12,6 +12,7 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
     - Produce gráficos comparativos de espectrograma para visualizar la reconstrucción de frecuencias.
+*   **Vocoder**: Utiliza de manera opcional el modelo `BigVGAN` para reconstruir la fase de la forma de onda.
 
 ## Dataset
 
@@ -31,10 +32,13 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 │   ├── model.py            # Definición de UNetAudio2D + AttentionGate
 │   ├── loss.py             # CombinedLoss (MultiResSTFT, Pérdida compleja y HF-Loss)
 │   └── downgrade.py        # Herramienta para generar pares LR desde HR
+├── jupyter/
+│   ├── inference.ipynb     # Inferencia adaptada a cuaderno para ejecutar en GPU
+│   └── train.ipynb         # Entrenamiento adaptado a cuaderno para ejecutar en GPU
 ├── train.py                # Script de entrenamiento con Scheduler y Early Stopping
 ├── inference.py            # Script para ejecución y visualización de resultados
 ├── requirements.txt        # Dependencias del proyecto
-└── unet2D_superres.pth     # Checkpoint del mejor modelo guardado
+└── unet2D_superres.pt      # Checkpoint del mejor modelo guardado
 ```
 
 ## Modelos entrenados
@@ -49,10 +53,10 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
     ```bash
     pip install -r requirements.txt
     ```
-3. Opcional: Instalar torch-directml para GPU de AMD:
+3. Opcional: Instalar torch-directml para GPU de AMD y bigvganinference para reconstrucción de fase:
 
     ```bash
-    pip install torch-directml==0.2.5.dev240914
+    pip install torch-directml==0.2.5.dev240914 bigvganinference==0.0.3
     ```
 
 ## Uso
@@ -90,13 +94,21 @@ Para probar el modelo en nuevos archivos de audio:
     *   `waveform.png`: Una comparación visual de las formas de onda.
     *   `spectrogram.png`: Una comparación visual de los espectrogramas.
 
+### Uso Jupyter
+
+Los cuadernos jupyter son versiones adaptadas para computación en gpu directamente en jupyter notebook:
+* `train.ipynb`: Entrenamiento del modelo.
+* `inference.ipynb`: Inferencia del modelo.
+
 ## Papers y proyectos de referencia
 
 *   [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([GitHub](https://github.com/kuleshov/audio-super-res))
 *   [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([GitHub](https://github.com/slp-rl/aero))
+*   [BigVGAN: A Universal Neural Vocoder with Large-Scale Training](https://arxiv.org/abs/2206.04658) ([GitHub](https://github.com/NVIDIA/BigVGAN))
 *   [Versatile_Audio_Super_Resolution](https://github.com/haoheliu/versatile_audio_super_resolution)
 
-## Requisitos
+
+## Desarrollado con las siguientes herramientas
 
 *   Python 3.12.10
 *   torch 2.4.1
