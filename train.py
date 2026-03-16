@@ -13,7 +13,7 @@ TRAIN_HR_DIR = './data/train/HR'  # Archivos de alta resolución (output de la r
 TRAIN_LR_DIR = './data/train/LR'  # Archivos de baja resolución (input de la red)
 VAL_HR_DIR = './data/test/HR'     # Archivos de alta resolución para validación
 VAL_LR_DIR = './data/test/LR'     # Archivos de baja resolución para validación
-BATCH_SIZE = 4
+BATCH_SIZE = 8
 EPOCHS = 500
 LEARNING_RATE = 1e-4
 

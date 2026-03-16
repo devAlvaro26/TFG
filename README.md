@@ -43,7 +43,7 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 
 ## Modelos entrenados
 
-*   [Repositorio modelo entrenado](https://drive.google.com/file/d/1iho1OBC-UG6cvvr_CS7q-tZ7x86Dp1Qm/view?usp=sharing)
+*   [Repositorio modelo entrenado](https://drive.google.com/file/d/1ZJG6cyHVTyY1F2O7C9ZlFXEljWWKZmHg/view?usp=sharing)
 
 ## Instalación
 
@@ -75,7 +75,7 @@ Para entrenar el modelo, es necesario un dataset de pares de archivos de audio d
     python train.py
     ```
 
-El script entrenará el modelo y guardará el mejor checkpoint en `unet2D_superres.pth` basado en la pérdida de validación. Utiliza un sistema de *Early Stopping* si la pérdida no mejora durante varias épocas.
+El script entrenará el modelo y guardará el mejor checkpoint en `unet2D_superres.pt` basado en la pérdida de validación. Utiliza un sistema de *Early Stopping* si la pérdida no mejora durante varias épocas.
 
 ### 2. Inferencia
 

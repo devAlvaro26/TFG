@@ -38,9 +38,9 @@ class DilatedBlock(nn.Module):
         self.net = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=(7,3), padding=(3,1), dilation=(1,1)),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(channels, channels, kernel_size=(7,3), padding=(6,1), dilation=(2,1)),
+            nn.Conv2d(channels, channels, kernel_size=(7,3), padding=(6,2), dilation=(2,2)),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(channels, channels, kernel_size=(7,3), padding=(12,1), dilation=(4,1)),
+            nn.Conv2d(channels, channels, kernel_size=(7,3), padding=(12,4), dilation=(4,4)),
             nn.LeakyReLU(0.2, inplace=True),
         )
 
@@ -57,22 +57,22 @@ class UNetAudio2D(nn.Module):
         # Encoder
         # Entrada: (B, 2, F, T)
         self.enc1 = self.conv_block(2, 32)
-        self.pool1 = nn.MaxPool2d((1,2))
+        self.pool1 = nn.MaxPool2d((2,2))
 
         self.enc2 = self.conv_block(32, 64)
-        self.pool2 = nn.MaxPool2d((1,2))
+        self.pool2 = nn.MaxPool2d((2,2))
 
         self.enc3 = self.conv_block(64, 128)
-        self.pool3 = nn.MaxPool2d((1,2))
+        self.pool3 = nn.MaxPool2d((2,2))
 
         self.enc4 = self.conv_block(128, 256)
-        self.pool4 = nn.MaxPool2d((1,2))
+        self.pool4 = nn.MaxPool2d((2,2))
 
         # Bottleneck
         self.bottleneck_conv = self.conv_block(256, 512)
         self.bottleneck_dilated = DilatedBlock(512)
 
-        # Decoder (upsample solo en tiempo)
+        # Decoder
         self.up4 = self.up_block(512,256)
         self.dec4 = self.conv_block(512,256)
 
@@ -106,9 +106,9 @@ class UNetAudio2D(nn.Module):
         )
 
     def up_block(self, in_ch, out_ch):
-        """Bloque de upsampling"""
+        """Bloque de upsampling en frecuencia y tiempo"""
         return nn.Sequential(
-            nn.Upsample(scale_factor=(1,2), mode="bilinear", align_corners=False),
+            nn.Upsample(scale_factor=(2,2), mode="bilinear", align_corners=False),
             nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1), nn.LeakyReLU(0.2, inplace=True))
 
     def match_size(self, x, ref):
