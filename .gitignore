@@ -10,7 +10,5 @@ data/test/HR/*.wav
 data/test/LR/*.wav
 data/train/*.wav
 data/test/*.wav
-data/train/*.wav
-data/test/*.wav
 data/test/
 data/train/
