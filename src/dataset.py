@@ -129,13 +129,15 @@ class AudioSuperResDataset(Dataset):
             waveform_lr = F.pad(waveform_lr[:, :min_len], (0, pad_amount))
         else:
             # Random Crop: Si es más largo, elegimos un trozo aleatorio.
-            # Esto ayuda al modelo a generalizar mejor (Data Augmentation implícito).
-            start = torch.randint(0, min_len - self.segment_length, (1,)).item()
+            if min_len > self.segment_length:
+                start = torch.randint(0, min_len - self.segment_length, (1,)).item()
+            else:
+                start = 0
             waveform_hr = waveform_hr[:, start:start + self.segment_length]
             waveform_lr = waveform_lr[:, start:start + self.segment_length]
 
-        # Descartar segmentos de silencio (evita sesgar el loss hacia cero)
-        if waveform_hr.abs().max() < 0.01:
+        # Descartar segmentos de silencio
+        if waveform_hr.abs().max() < 1e-4:
             return self.__getitem__((idx + 1) % len(self))
 
         # Calcular STFT de ambas waveforms

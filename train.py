@@ -1,5 +1,5 @@
 # Script para entrenar la red neuronal
-# Este script guardara el mejor modelo en un archivo .pth
+# Este script guardara el mejor modelo en un archivo .pt
 
 import os
 import torch
@@ -59,17 +59,17 @@ def train():
         return
 
     print(f"Dataset de entrenamiento cargado: {len(train_dataset)} archivos")
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=os.cpu_count()-1, pin_memory=True)
     print(f"Dataset de validación cargado: {len(val_dataset)} archivos")
-    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=os.cpu_count()-1, pin_memory=True)
 
     # Inicializar modelo
     model = UNetAudio2D().to(DEVICE)
 
     # Inicializar Loss y Optimizer
-    # Loss combinada de MRSTFT, HF y pérdida compleja
+    # Loss combinada de MRSTFT, HF, pérdida compleja y mel spectrogram
     # Optimizer AdamW
-    criterion = CombinedLoss(lambda_mrstft = 1.0,lambda_hf = 2.0,lambda_complex = 0.5).to(DEVICE)
+    criterion = CombinedLoss(lambda_mrstft = 1.0, lambda_hf = 1.5, lambda_complex = 0.5, lambda_mel = 0.5).to(DEVICE)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4, betas=(0.9, 0.999)) 
 
     # Scheduler

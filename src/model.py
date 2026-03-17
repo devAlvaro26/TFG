@@ -108,8 +108,10 @@ class UNetAudio2D(nn.Module):
     def up_block(self, in_ch, out_ch):
         """Bloque de upsampling en frecuencia y tiempo"""
         return nn.Sequential(
-            nn.Upsample(scale_factor=(2,2), mode="bilinear", align_corners=False),
-            nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1), nn.LeakyReLU(0.2, inplace=True))
+            nn.Conv2d(in_ch, out_ch * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2),  # sub-pixel upsampling
+            nn.LeakyReLU(0.2, inplace=True)
+        )
 
     def match_size(self, x, ref):
         """Asegura que x tenga el mismo tamaño que ref"""

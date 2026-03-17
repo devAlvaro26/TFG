@@ -189,4 +189,5 @@ class CombinedLoss(nn.Module):
         # Mel spectrogram loss
         mel_loss = self.mel_loss(pred_mag, tgt_mag)
 
-        return self.lambda_mrstft * mrstft_loss + self.lambda_hf * hf + self.lambda_complex * complex_l1 + self.lambda_mel * mel_loss
+        return (self.lambda_mrstft * mrstft_loss + self.lambda_hf * hf + self.lambda_complex * complex_l1 +
+            self.lambda_mel * mel_loss) / (self.lambda_mrstft + self.lambda_hf + self.lambda_complex + self.lambda_mel)

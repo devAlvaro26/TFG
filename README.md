@@ -43,7 +43,7 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 
 ## Modelos entrenados
 
-*   [Repositorio modelo entrenado](https://drive.google.com/file/d/1ZJG6cyHVTyY1F2O7C9ZlFXEljWWKZmHg/view?usp=sharing)
+*   [Repositorio modelo entrenado](https://drive.google.com/file/d/1jumAsXCcokO7fbr-Ae5CO2H9ym-uZjUB/view?usp=sharing)
 
 ## Instalación
 
