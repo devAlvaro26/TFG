@@ -4,3 +4,15 @@ src/*.pyc
 .github/*.md
 *.pth
 *.pt
+data/train/HR/*.wav
+data/train/LR/*.wav
+data/test/HR/*.wav
+data/test/LR/*.wav
+data/val/HR/*.wav
+data/val/LR/*.wav
+data/train/*.wav
+data/test/*.wav
+data/val/*.wav
+data/train/*.wav
+data/test/*.wav
+data/val/*.wav
