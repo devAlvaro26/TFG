@@ -58,10 +58,11 @@ def train():
         print("Error: El dataset está vacío")
         return
 
-    print(f"Dataset de entrenamiento cargado: {len(train_dataset)} archivos")
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=os.cpu_count()-1, pin_memory=True)
-    print(f"Dataset de validación cargado: {len(val_dataset)} archivos")
-    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=os.cpu_count()-1, pin_memory=True)
+    num_workers = max(0, os.cpu_count()-1)
+    print(f"Dataset de entrenamiento cargado: {len(train_dataset)} elementos")
+    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=num_workers, pin_memory=True)
+    print(f"Dataset de validación cargado: {len(val_dataset)} elementos")
+    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     # Inicializar modelo
     model = UNetAudio2D().to(DEVICE)
@@ -69,7 +70,7 @@ def train():
     # Inicializar Loss y Optimizer
     # Loss combinada de MRSTFT, HF, pérdida compleja y mel spectrogram
     # Optimizer AdamW
-    criterion = CombinedLoss(lambda_mrstft = 1.0, lambda_hf = 1.5, lambda_complex = 0.5, lambda_mel = 0.5).to(DEVICE)
+    criterion = CombinedLoss(lambda_mrstft = 1.0, lambda_hf = 1.0, lambda_complex = 1.0, lambda_mel = 0.5).to(DEVICE)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4, betas=(0.9, 0.999)) 
 
     # Scheduler

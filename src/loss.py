@@ -10,12 +10,16 @@ from torchaudio.functional import melscale_fbanks
 NFFT = 1024
 HOP_LENGTH = 256
 WIN_LENGTH = 1024
+SAMPLE_RATE = 44100
 
-def stft_mag(x, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH):
+def stft_mag(x, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH, window=None):
     """Calcula el STFT y devuelve la magnitud."""
     device = x.device
     x = x.cpu()
-    window = torch.hann_window(win_length).cpu()
+    if window is None:
+        window = torch.hann_window(win_length).cpu()
+    else:
+        window = window.cpu()
 
     stft_res = torch.stft(
         x,
@@ -25,7 +29,7 @@ def stft_mag(x, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH):
         window=window,
         return_complex=True
     )
-    
+
     return torch.abs(stft_res).to(device)
 
 
@@ -56,9 +60,11 @@ class STFTLoss(nn.Module):
         self.sc_loss = SpectralConvergenceLoss()
         self.mag_loss = LogMagnitudeLoss()
 
+        self.register_buffer("window", torch.hann_window(win_length))
+
     def forward(self, x, y):
-        x_mag = stft_mag(x, self.n_fft, self.hop_length, self.win_length)
-        y_mag = stft_mag(y, self.n_fft, self.hop_length, self.win_length)
+        x_mag = stft_mag(x, self.n_fft, self.hop_length, self.win_length, self.window)
+        y_mag = stft_mag(y, self.n_fft, self.hop_length, self.win_length, self.window)
 
         sc = self.sc_loss(x_mag, y_mag)
         mag = self.mag_loss(x_mag, y_mag)
@@ -96,7 +102,7 @@ class MultiResolutionSTFTLoss(nn.Module):
 
 class HighFrequencyLoss(nn.Module):
     """Pérdida de alta frecuencia."""
-    def __init__(self, sr=44100, n_fft=NFFT, fmin=4000):
+    def __init__(self, sr=SAMPLE_RATE, n_fft=NFFT, fmin=4000):
 
         super().__init__()
 
@@ -107,12 +113,12 @@ class HighFrequencyLoss(nn.Module):
         self.register_buffer("mask", mask.view(1, -1, 1))
 
     def forward(self, pred_mag, target_mag):
-        return torch.mean(torch.abs(pred_mag - target_mag) * self.mask)
+        return F.l1_loss(pred_mag * self.mask, target_mag * self.mask)
 
 
 class MelLoss(nn.Module):
     """Pérdida de mel spectrogram."""
-    def __init__(self, sr=44100, n_fft=NFFT, n_mels=80):
+    def __init__(self, sr=SAMPLE_RATE, n_fft=NFFT, n_mels=80):
 
         super().__init__()
 
@@ -128,7 +134,7 @@ class MelLoss(nn.Module):
 
 class CombinedLoss(nn.Module):
     """Pérdida combinada de MRSTFT, HF, Complex y Mel."""
-    def __init__(self, lambda_mrstft=1.0, lambda_hf=1.5, lambda_complex=0.5, lambda_mel=0.5):
+    def __init__(self, lambda_mrstft=1.0, lambda_hf=1.0, lambda_complex=1.0, lambda_mel=1.0):
 
         super().__init__()
 
@@ -140,6 +146,8 @@ class CombinedLoss(nn.Module):
         self.mrstft = MultiResolutionSTFTLoss()
         self.hf_loss = HighFrequencyLoss()
         self.mel_loss = MelLoss()
+
+        self.register_buffer("istft_window", torch.hann_window(NFFT))
 
     def denormalize(self, stft):
         """Inversa de la log-compresión: sign(x) * (exp(|x|) - 1)."""
@@ -154,12 +162,12 @@ class CombinedLoss(nn.Module):
         pred = pred[:, :, :valid_f, :]
         target = target[:, :, :valid_f, :]
 
-        # L1 loss
-        complex_l1 = F.l1_loss(pred, target)
-
         # Desnormalizar
         pred_denorm = self.denormalize(pred)
         target_denorm = self.denormalize(target)
+
+        # complex L1
+        complex_l1 = F.l1_loss(pred_denorm, target_denorm)
 
         pred_real = pred_denorm[:,0]
         pred_imag = pred_denorm[:,1]
@@ -178,7 +186,7 @@ class CombinedLoss(nn.Module):
         pred_complex = torch.complex(pred_real.cpu(), pred_imag.cpu())
         tgt_complex = torch.complex(tgt_real.cpu(), tgt_imag.cpu())
 
-        window = torch.hann_window(NFFT).cpu()
+        window = self.istft_window.cpu()
         pred_audio = torch.istft(pred_complex, n_fft=NFFT, hop_length=HOP_LENGTH, window=window).to(device)
         tgt_audio = torch.istft(tgt_complex, n_fft=NFFT, hop_length=HOP_LENGTH, window=window).to(device)
 

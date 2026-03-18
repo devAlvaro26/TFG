@@ -1,5 +1,5 @@
 # Script para cargar el dataset
-# Devuelve pares de STFT (real + imaginario) con shape (2, F, T)
+# Devuelve pares de STFT (real + imaginario) con shape (2, F, T) en fragmentos de 1.5s
 
 import os
 import torch
@@ -9,24 +9,26 @@ from torch.utils.data import Dataset
 
 NFFT = 1024
 HOP_LENGTH = 256
-SEGMENT_LENGTH = 65536
+SAMPLE_RATE = 44100
+FRAGMENT_LENGTH = 65536
 
 class AudioSuperResDataset(Dataset):
     """
-    Cargar pares de audio (Alta Calidad - HR y Baja Calidad - LR)
-    y devolver sus representaciones STFT.
+    Cargar pares de audio (Alta Calidad - HR y Baja Calidad - LR),
+    dividirlos en fragmentos de FRAGMENT_LENGTH muestras y devolver
+    sus representaciones STFT con shape (2, F, T).
 
     hr_dir: Directorio de los archivos en alta calidad (Ground Truth)
     lr_dir: Directorio de los archivos en baja calidad (Input)
-    segment_length: Longitud del segmento de audio para el entrenamiento (en muestras). Debe ser compatible con n_fft y hop_length.
+    fragment_length: Longitud del fragmento a procesar en muestras
     n_fft: Tamaño de la FFT para el STFT.
     hop_length: Salto entre ventanas STFT.
     """
-    def __init__(self, hr_dir, lr_dir, segment_length=SEGMENT_LENGTH, n_fft=NFFT, hop_length=HOP_LENGTH):
+    def __init__(self, hr_dir, lr_dir, fragment_length=FRAGMENT_LENGTH, n_fft=NFFT, hop_length=HOP_LENGTH):
 
         self.hr_dir = hr_dir
         self.lr_dir = lr_dir
-        self.segment_length = segment_length
+        self.fragment_length = fragment_length
         self.n_fft = n_fft
         self.hop_length = hop_length
 
@@ -36,14 +38,69 @@ class AudioSuperResDataset(Dataset):
         # Cache de resamplers
         self._resamplers = {}
 
+        # Ventana para STFT
+        self.window = torch.hann_window(self.n_fft)
+
         # Contar ficheros
-        self.files = [
+        files = [
             f for f in os.listdir(hr_dir)
             if f.endswith('.wav') and os.path.exists(os.path.join(lr_dir, f))
         ]
 
+        # Cargar ficheros y dividir en fragmentos
+        self.fragments = []  # lista (hr_fragment, lr_fragment)
+        for filename in files:
+            hr_path = os.path.join(hr_dir, filename)
+            lr_path = os.path.join(lr_dir, filename)
+
+            # Cargar los audios
+            waveform_hr, sr_hr = torchaudio.load(hr_path)
+            waveform_lr, sr_lr = torchaudio.load(lr_path)
+
+            # Uniformizar a mono
+            if waveform_hr.size(0) > 1:
+                waveform_hr = waveform_hr.mean(dim=0, keepdim=True)
+            if waveform_lr.size(0) > 1:
+                waveform_lr = waveform_lr.mean(dim=0, keepdim=True)
+
+            # Resamplear a 44.1 kHz
+            if sr_hr != SAMPLE_RATE:
+                key = ('hr', sr_hr)
+                if key not in self._resamplers:
+                    self._resamplers[key] = torchaudio.transforms.Resample(sr_hr, SAMPLE_RATE)
+                waveform_hr = self._resamplers[key](waveform_hr)
+
+            if sr_lr != SAMPLE_RATE:
+                key = ('lr', sr_lr)
+                if key not in self._resamplers:
+                    self._resamplers[key] = torchaudio.transforms.Resample(sr_lr, SAMPLE_RATE)
+                waveform_lr = self._resamplers[key](waveform_lr)
+
+            # Normalizar a [-1, 1]
+            max_val = max(waveform_hr.abs().max(), waveform_lr.abs().max()) + 1e-8
+            waveform_hr = waveform_hr / max_val
+            waveform_lr = waveform_lr / max_val
+
+            # Dividir en fragmentos de fragment_length muestras
+            min_len = min(waveform_hr.size(1), waveform_lr.size(1))
+            num_fragments = min_len // self.fragment_length
+
+            for i in range(num_fragments):
+                start = i * self.fragment_length
+                end = start + self.fragment_length
+                frag_hr = waveform_hr[:, start:end]
+                frag_lr = waveform_lr[:, start:end]
+
+                # Descartar fragmentos de silencio
+                if frag_hr.abs().max() < 1e-4:
+                    continue
+
+                self.fragments.append((frag_hr, frag_lr))
+
+        print(f"[Dataset] {len(files)} ficheros: {len(self.fragments)} fragmentos de {FRAGMENT_LENGTH} muestras.")
+
     def __len__(self):
-        return len(self.files)
+        return len(self.fragments)
 
     def _waveform_to_stft(self, waveform):
         """
@@ -55,7 +112,7 @@ class AudioSuperResDataset(Dataset):
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             win_length=self.n_fft,
-            window=torch.hann_window(self.n_fft),
+            window=self.window,
             return_complex=True,
         )  #stft shape: (F, T)
 
@@ -89,60 +146,11 @@ class AudioSuperResDataset(Dataset):
         return stft
 
     def __getitem__(self, idx):
-        filename = self.files[idx]
-        hr_path = os.path.join(self.hr_dir, filename)
-        lr_path = os.path.join(self.lr_dir, filename)
-
-        # Cargar audio en alta y baja calidad
-        waveform_hr, sr_hr = torchaudio.load(hr_path)
-        waveform_lr, sr_lr = torchaudio.load(lr_path)
-
-        # Uniformizar a mono
-        if waveform_hr.size(0) > 1:
-            waveform_hr = waveform_hr.mean(dim=0, keepdim=True)
-        if waveform_lr.size(0) > 1:
-            waveform_lr = waveform_lr.mean(dim=0, keepdim=True)
-
-        # Forzar 44.1kHz en ambos para alinear cortes
-        if sr_hr != 44100:
-            if sr_hr not in self._resamplers:
-                self._resamplers[sr_hr] = torchaudio.transforms.Resample(sr_hr, 44100)
-            waveform_hr = self._resamplers[sr_hr](waveform_hr)
-
-        if sr_lr != 44100:
-            if sr_lr not in self._resamplers:
-                self._resamplers[sr_lr] = torchaudio.transforms.Resample(sr_lr, 44100)
-            waveform_lr = self._resamplers[sr_lr](waveform_lr)
-
-        min_len = min(waveform_hr.size(1), waveform_lr.size(1))
-
-        # Normalizar a [-1, 1]
-        max_val = max(waveform_hr.abs().max(), waveform_lr.abs().max()) + 1e-8
-        waveform_hr = waveform_hr / max_val
-        waveform_lr = waveform_lr / max_val
-
-        # Random Crop o Padding
-        if min_len < self.segment_length:
-            # Padding: Si el audio es más corto, rellenamos con ceros a la derecha.
-            pad_amount = self.segment_length - min_len
-            waveform_hr = F.pad(waveform_hr[:, :min_len], (0, pad_amount))
-            waveform_lr = F.pad(waveform_lr[:, :min_len], (0, pad_amount))
-        else:
-            # Random Crop: Si es más largo, elegimos un trozo aleatorio.
-            if min_len > self.segment_length:
-                start = torch.randint(0, min_len - self.segment_length, (1,)).item()
-            else:
-                start = 0
-            waveform_hr = waveform_hr[:, start:start + self.segment_length]
-            waveform_lr = waveform_lr[:, start:start + self.segment_length]
-
-        # Descartar segmentos de silencio
-        if waveform_hr.abs().max() < 1e-4:
-            return self.__getitem__((idx + 1) % len(self))
+        frag_hr, frag_lr = self.fragments[idx]
 
         # Calcular STFT de ambas waveforms
-        stft_lr = self._waveform_to_stft(waveform_lr)
-        stft_hr = self._waveform_to_stft(waveform_hr)
+        stft_lr = self._waveform_to_stft(frag_lr)
+        stft_hr = self._waveform_to_stft(frag_hr)
 
         # Normalizar STFT con log-compresión para reducir rango dinámico
         stft_lr = self._normalize_stft(stft_lr)

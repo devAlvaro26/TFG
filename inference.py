@@ -13,6 +13,12 @@ MODEL_PATH = 'unet2D_superres.pt'   # Archivo del modelo entrenado
 INF_DIR = './data/inference'        # Archivos de entrada
 OUTPUT_DIR = './results'            # Archivos de salida
 
+TARGET_SR = 44100       # Target sample rate
+POOL_FACTOR = 16        # 2^4 para 4 capas de pooling en UNet 2D
+N_FFT = 1024            # Tamaño de la FFT para STFT
+HOP_LENGTH = 256        # Salto entre ventanas STFT
+FRAGMENT_LENGTH = 65536
+
 try:
     import torch_directml
     has_dml = torch_directml.is_available()
@@ -25,11 +31,6 @@ elif has_dml:
     DEVICE = torch_directml.device()
 else:
     DEVICE = 'cpu'
-
-TARGET_SR = 44100       # Target sample rate
-POOL_FACTOR = 16        # 2^4 para 4 capas de pooling en UNet 2D
-N_FFT = 1024            # Tamaño de la FFT para STFT
-HOP_LENGTH = 256        # Salto entre ventanas STFT
 
 # VOCODER para reconstrucción de fase (Opcional)
 try:
