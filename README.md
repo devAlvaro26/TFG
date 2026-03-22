@@ -4,10 +4,9 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 
 ## Características
 
-*   **Arquitectura UNet 2D**: Aplicada al procesamiento de la magnitud real e imaginaria del STFT incorporando `Attention Gates` y `Dilated Convolutions`.
+*   **Arquitectura Attention UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar magnitud y fase, `Attention Gates` y `Dilated Convolutions`.
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
-*   **Pérdida Multi-objetivo**: Utiliza `CombinedLoss` (MultiResSTFT, Pérdida compleja y HF-Loss) para calcular la pérdida.
-*   **Aprendizaje Residual**: El modelo aprende a predecir el contenido faltante (residuo) y sumandolo a la entrada de baja resolución.
+*   **Entrenamiento GAN y Pérdida Multi-objetivo**: Utiliza un Generador entrenado con `CombinedLoss` (Pérdida L1 en dominio del tiempo y MultiResolution STFT Loss) junto a un Discriminador Multi-Escala (`DiscriminatorLoss` con pérdida adversarial y feature matching) inspirado en HiFi-GAN y AERO.
 *   **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
@@ -29,8 +28,9 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 ├── results/                # Salida de la inferencia (audio + gráficos)
 ├── src/
 │   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a STFT
-│   ├── model.py            # Definición de UNetAudio2D + AttentionGate
-│   ├── loss.py             # CombinedLoss (MultiResSTFT, Pérdida compleja y HF-Loss)
+│   ├── model.py            # Definición de UNetAudio2D (Attention UNet) + AttentionGate
+│   ├── discriminator.py    # Definición del Discriminador Multi-Escala (MSD)
+│   ├── loss.py             # CombinedLoss (L1, MR-STFT) y DiscriminatorLoss
 │   └── downgrade.py        # Herramienta para generar pares LR desde HR
 ├── jupyter/
 │   ├── inference.ipynb     # Inferencia adaptada a cuaderno para ejecutar en GPU
@@ -43,7 +43,7 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 
 ## Modelos entrenados
 
-*   [Repositorio modelo entrenado](https://drive.google.com/file/d/1jumAsXCcokO7fbr-Ae5CO2H9ym-uZjUB/view?usp=sharing)
+*   [Repositorio modelo pre-entrenado](https://drive.google.com/file/d/1UEwjrHaIlYcPdnGjoN8Q2EL9kj2mPjiY/view?usp=sharing)
 
 ## Instalación
 
@@ -105,6 +105,7 @@ Los cuadernos jupyter son versiones adaptadas para computación en gpu directame
 *   [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([GitHub](https://github.com/kuleshov/audio-super-res))
 *   [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([GitHub](https://github.com/slp-rl/aero))
 *   [BigVGAN: A Universal Neural Vocoder with Large-Scale Training](https://arxiv.org/abs/2206.04658) ([GitHub](https://github.com/NVIDIA/BigVGAN))
+*   [HiFi-GAN: Generative Adversarial Networks for Efficient and High Fidelity Speech Synthesis](https://arxiv.org/abs/2010.05646)
 *   [Versatile_Audio_Super_Resolution](https://github.com/haoheliu/versatile_audio_super_resolution)
 
 

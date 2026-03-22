@@ -1,51 +1,16 @@
-# Loss para Audio Super-Resolución
+# Loss para Audio Super-Resolución y el Discriminador
 # Este script contiene las funciones de pérdida para entrenar la red neuronal, calculando
 # la pérdida en el dominio del tiempo y en el dominio de la frecuencia.
+# Basado en la Loss implementada en AERO: https://github.com/slp-rl/aero
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchaudio.functional import melscale_fbanks
 
 NFFT = 1024
 HOP_LENGTH = 256
 WIN_LENGTH = 1024
 SAMPLE_RATE = 44100
-
-def stft_mag(x, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH, window=None):
-    """Calcula el STFT y devuelve la magnitud."""
-    device = x.device
-    x = x.cpu()
-    if window is None:
-        window = torch.hann_window(win_length).cpu()
-    else:
-        window = window.cpu()
-
-    stft_res = torch.stft(
-        x,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        win_length=win_length,
-        window=window,
-        return_complex=True
-    )
-
-    return torch.abs(stft_res).to(device)
-
-
-class SpectralConvergenceLoss(nn.Module):
-    """Pérdida de convergencia espectral."""
-
-    def forward(self, x_mag, y_mag):
-        return torch.norm(y_mag - x_mag, p="fro") / (torch.norm(y_mag, p="fro") + 1e-8)
-
-
-class LogMagnitudeLoss(nn.Module):
-    """Pérdida de magnitud logarítmica."""
-
-    def forward(self, x_mag, y_mag):
-        return F.l1_loss(torch.log(x_mag + 1e-7), torch.log(y_mag + 1e-7))
-
 
 class STFTLoss(nn.Module):
     """Pérdida STFT."""
@@ -56,146 +21,204 @@ class STFTLoss(nn.Module):
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.win_length = win_length
-
-        self.sc_loss = SpectralConvergenceLoss()
-        self.mag_loss = LogMagnitudeLoss()
-
         self.register_buffer("window", torch.hann_window(win_length))
 
     def forward(self, x, y):
-        x_mag = stft_mag(x, self.n_fft, self.hop_length, self.win_length, self.window)
-        y_mag = stft_mag(y, self.n_fft, self.hop_length, self.win_length, self.window)
+        # x, y shape: (B, T)
+        device = x.device
+        if device.type in ['privateuseone', 'dml']:
+            # Workaround para DirectML
+            x_cpu = x.cpu()
+            y_cpu = y.cpu()
+            window_cpu = self.window.cpu()
+            
+            x_stft = torch.stft(x_cpu, self.n_fft, self.hop_length, self.win_length, window_cpu, return_complex=True)
+            y_stft = torch.stft(y_cpu, self.n_fft, self.hop_length, self.win_length, window_cpu, return_complex=True)
 
-        sc = self.sc_loss(x_mag, y_mag)
-        mag = self.mag_loss(x_mag, y_mag)
+            x_mag = torch.abs(x_stft).to(device)
+            y_mag = torch.abs(y_stft).to(device)
+        else:
+            x_stft = torch.stft(
+                x, self.n_fft, self.hop_length, self.win_length, self.window, return_complex=True
+            )
+            y_stft = torch.stft(
+                y, self.n_fft, self.hop_length, self.win_length, self.window, return_complex=True
+            )
 
-        return sc, mag
+            x_mag = torch.abs(x_stft)
+            y_mag = torch.abs(y_stft)
+
+        # Spectral Convergence Loss
+        sc_loss = torch.norm(y_mag - x_mag, p="fro") / (torch.norm(y_mag, p="fro") + 1e-7)
+        
+        # Log-Magnitude Loss
+        mag_loss = F.l1_loss(torch.log(x_mag + 1e-7), torch.log(y_mag + 1e-7))
+
+        return sc_loss, mag_loss
 
 
 class MultiResolutionSTFTLoss(nn.Module):
-    """Pérdida STFT multi-resolución."""
-    def __init__(self):
+    """
+    Pérdida STFT multi-resolución.
+    Resoluciones basadas en AERO
+    """
+    def __init__(self, fft_sizes=[1024, 2048, 512], hop_sizes=[120, 240, 50], win_lengths=[600, 1200, 240]):
+
 
         super().__init__()
 
-        # Calcular STFT a diferentes resoluciones para capturar diferentes frecuencias
-        self.stft_losses = nn.ModuleList([
-            STFTLoss(512, 128, 512),
-            STFTLoss(1024, 256, 1024),
-            STFTLoss(2048, 512, 2048),
-        ])
+
+        assert len(fft_sizes) == len(hop_sizes) == len(win_lengths)
+        
+        # STFT diferentes resoluciones
+        self.stft_losses = nn.ModuleList()
+        for fs, ss, wl in zip(fft_sizes, hop_sizes, win_lengths):
+            self.stft_losses.append(STFTLoss(fs, ss, wl))
 
     def forward(self, x, y):
-        sc_total = 0
-        mag_total = 0
-
-        for loss in self.stft_losses:
-            sc, mag = loss(x, y)
-            sc_total += sc
-            mag_total += mag
-
-        sc_total /= len(self.stft_losses)
-        mag_total /= len(self.stft_losses)
-
-        return sc_total, mag_total
-
-
-class HighFrequencyLoss(nn.Module):
-    """Pérdida de alta frecuencia."""
-    def __init__(self, sr=SAMPLE_RATE, n_fft=NFFT, fmin=4000):
-
-        super().__init__()
-
-        # Crear máscara para ponderar más las altas frecuencias
-        freqs = torch.linspace(0, sr/2, n_fft//2 + 1)
-        mask = (freqs >= fmin).float()
-
-        self.register_buffer("mask", mask.view(1, -1, 1))
-
-    def forward(self, pred_mag, target_mag):
-        return F.l1_loss(pred_mag * self.mask, target_mag * self.mask)
-
-
-class MelLoss(nn.Module):
-    """Pérdida de mel spectrogram."""
-    def __init__(self, sr=SAMPLE_RATE, n_fft=NFFT, n_mels=80):
-
-        super().__init__()
-
-        mel_fb = melscale_fbanks(n_freqs=n_fft//2+1, f_min=0, f_max=sr/2, n_mels=n_mels, sample_rate=sr)
-        self.register_buffer("mel_fb", mel_fb)
-
-    def forward(self, pred_mag, tgt_mag):
-        # pred_mag/tgt_mag shape: (B, F, T)
-        pred_mel = torch.matmul(pred_mag.transpose(1, 2), self.mel_fb)
-        tgt_mel  = torch.matmul(tgt_mag.transpose(1, 2), self.mel_fb)
-        return F.l1_loss(torch.log(pred_mel + 1e-7), torch.log(tgt_mel + 1e-7))
+        sc_loss = 0.0
+        mag_loss = 0.0
+        
+        for f in self.stft_losses:
+            sc_l, mag_l = f(x, y)
+            sc_loss += sc_l
+            mag_loss += mag_l
+        
+        sc_loss /= len(self.stft_losses)
+        mag_loss /= len(self.stft_losses)
+        
+        return sc_loss + mag_loss
 
 
 class CombinedLoss(nn.Module):
-    """Pérdida combinada de MRSTFT, HF, Complex y Mel."""
-    def __init__(self, lambda_mrstft=1.0, lambda_hf=1.0, lambda_complex=1.0, lambda_mel=1.0):
+    """Pérdida combinada de L1 y MR-STFT."""
+
+    def __init__(self, n_fft=NFFT, hop_length=HOP_LENGTH, lambda_l1=1.0, lambda_mrstft=1.0):
 
         super().__init__()
 
+        self.n_fft = n_fft
+        self.hop_length = hop_length
+        
+        self.lambda_l1 = lambda_l1
         self.lambda_mrstft = lambda_mrstft
-        self.lambda_hf = lambda_hf
-        self.lambda_complex = lambda_complex
-        self.lambda_mel = lambda_mel
+        
+        # Buffer ISTFT
+        self.register_buffer('base_window', torch.hann_window(n_fft))
+        
+        # MRSTFT
+        self.mrstft_loss = MultiResolutionSTFTLoss()
 
-        self.mrstft = MultiResolutionSTFTLoss()
-        self.hf_loss = HighFrequencyLoss()
-        self.mel_loss = MelLoss()
-
-        self.register_buffer("istft_window", torch.hann_window(NFFT))
-
-    def denormalize(self, stft):
-        """Inversa de la log-compresión: sign(x) * (exp(|x|) - 1)."""
+    def _denormalize_stft(self, stft):
+        """Inversa de log-compresión."""
         sign = torch.sign(stft)
         return sign * (torch.exp(torch.abs(stft)) - 1)
 
-    def forward(self, pred, target):
-        # pred/target shape (B,2,F,T)
+    def _stft_to_waveform(self, stft_ri):
+        """Aplica ISTFT."""
+        # Deshacer padding en frecuencia
+        valid_freq_bins = self.n_fft // 2 + 1
+        if stft_ri.size(2) > valid_freq_bins:
+            stft_ri = stft_ri[:, :, :valid_freq_bins, :]
+
+        device = stft_ri.device
+        if device.type in ['privateuseone', 'dml']:
+            # Workaround para DirectML
+            stft_ri_cpu = stft_ri.cpu()
+            stft_complex = torch.complex(stft_ri_cpu[:, 0], stft_ri_cpu[:, 1])
+            waveform = torch.istft(
+                stft_complex,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length,
+                win_length=self.n_fft,
+                window=self.base_window.cpu()
+            )
+            return waveform.to(device)
+        else:
+            stft_complex = torch.complex(stft_ri[:, 0], stft_ri[:, 1])
+            waveform = torch.istft(
+                stft_complex,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length,
+                win_length=self.n_fft,
+                window=self.base_window
+            )
+            return waveform
+
+    def get_waveforms(self, pred_stft, target_stft):
+        """Pasar de STFT log-comprimido a waveform"""
+        pred_linear = self._denormalize_stft(pred_stft)
+        target_linear = self._denormalize_stft(target_stft)
         
-        # Descartar bins de frecuencia para coincidir con n_fft // 2 + 1 esperado
-        valid_f = self.hf_loss.mask.shape[1]
-        pred = pred[:, :, :valid_f, :]
-        target = target[:, :, :valid_f, :]
+        pred_wav = self._stft_to_waveform(pred_linear)
+        target_wav = self._stft_to_waveform(target_linear)
+    
+        # Recortar a la misma longitud mínima
+        min_len = min(pred_wav.size(-1), target_wav.size(-1))
+        pred_wav = pred_wav[..., :min_len]
+        target_wav = target_wav[..., :min_len]
+    
+        # Asegurar shape (B, 1, T) para el discriminador 1D
+        if pred_wav.ndim == 2:
+            pred_wav = pred_wav.unsqueeze(1)
+            target_wav = target_wav.unsqueeze(1)
+        
+        return pred_wav, target_wav
 
-        # Desnormalizar
-        pred_denorm = self.denormalize(pred)
-        target_denorm = self.denormalize(target)
-
-        # complex L1
-        complex_l1 = F.l1_loss(pred_denorm, target_denorm)
-
-        pred_real = pred_denorm[:,0]
-        pred_imag = pred_denorm[:,1]
-
-        tgt_real = target_denorm[:,0]
-        tgt_imag = target_denorm[:,1]
-
-        pred_mag = torch.sqrt(pred_real**2 + pred_imag**2 + 1e-8)
-        tgt_mag = torch.sqrt(tgt_real**2 + tgt_imag**2 + 1e-8)
-
-        # HF loss
-        hf = self.hf_loss(pred_mag, tgt_mag)
-
+    def forward(self, pred_stft, target_stft, pred_wav=None, target_wav=None):
+        # Si no se proporcionan waveforms precalculadas, calcular internamente
+        if pred_wav is None or target_wav is None:
+            # Descomprimir
+            pred_linear = self._denormalize_stft(pred_stft)
+            target_linear = self._denormalize_stft(target_stft)
+            
+            # Reconstrucción a Waveform
+            pred_wav = self._stft_to_waveform(pred_linear)
+            target_wav = self._stft_to_waveform(target_linear)
+        
+        # Recortar a longitud mínima
+        min_len = min(pred_wav.size(-1), target_wav.size(-1))
+        pred_wav = pred_wav[..., :min_len]
+        target_wav = target_wav[..., :min_len]
+        
+        # L1 loss
+        loss_l1 = F.l1_loss(pred_wav, target_wav)
+        
         # MRSTFT loss
-        device = pred.device
-        pred_complex = torch.complex(pred_real.cpu(), pred_imag.cpu())
-        tgt_complex = torch.complex(tgt_real.cpu(), tgt_imag.cpu())
+        if pred_wav.ndim == 3:
+            pred_wav = pred_wav.squeeze(1)
+            target_wav = target_wav.squeeze(1)
+        loss_mrstft = self.mrstft_loss(pred_wav, target_wav)
+        
+        return self.lambda_l1 * loss_l1 + self.lambda_mrstft * loss_mrstft
 
-        window = self.istft_window.cpu()
-        pred_audio = torch.istft(pred_complex, n_fft=NFFT, hop_length=HOP_LENGTH, window=window).to(device)
-        tgt_audio = torch.istft(tgt_complex, n_fft=NFFT, hop_length=HOP_LENGTH, window=window).to(device)
 
-        sc, mag = self.mrstft(pred_audio, tgt_audio)
+# Pérdidas del discriminador
+class DiscriminatorLoss(nn.Module):
+    """Pérdidas del discriminador."""
+    @staticmethod
+    def discriminator_loss(disc_real_outputs, disc_generated_outputs):
+        """Pérdida LSGAN para el discriminador."""
+        loss = 0
+        for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
+            dr_loss = torch.mean((1 - dr)**2)
+            dg_loss = torch.mean(dg**2)
+            loss += (dr_loss + dg_loss)
+        return loss
 
-        mrstft_loss = sc + mag
+    @staticmethod
+    def generator_loss(disc_generated_outputs):
+        """Pérdida adversarial para el generador."""
+        loss = 0
+        for dg in disc_generated_outputs:
+            loss += torch.mean((1 - dg)**2)
+        return loss
 
-        # Mel spectrogram loss
-        mel_loss = self.mel_loss(pred_mag, tgt_mag)
-
-        return (self.lambda_mrstft * mrstft_loss + self.lambda_hf * hf + self.lambda_complex * complex_l1 +
-            self.lambda_mel * mel_loss) / (self.lambda_mrstft + self.lambda_hf + self.lambda_complex + self.lambda_mel)
+    @staticmethod
+    def feature_matching_loss(fmap_r, fmap_g):
+        """Pérdida L1 entre los feature maps del discriminador."""
+        loss = 0
+        for dr, dg in zip(fmap_r, fmap_g):
+            for rl, gl in zip(dr, dg):
+                loss += torch.mean(torch.abs(rl - gl))
+        return loss * 2 # 2x FM loss

@@ -97,8 +97,6 @@ class AudioSuperResDataset(Dataset):
 
                 self.fragments.append((frag_hr, frag_lr))
 
-        print(f"[Dataset] {len(files)} ficheros: {len(self.fragments)} fragmentos de {FRAGMENT_LENGTH} muestras.")
-
     def __len__(self):
         return len(self.fragments)
 

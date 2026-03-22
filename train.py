@@ -7,15 +7,18 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
-from src.loss import CombinedLoss
+from src.discriminator import MultiScaleDiscriminator
+from src.loss import CombinedLoss, DiscriminatorLoss
 
-TRAIN_HR_DIR = './data/train/HR'  # Archivos de alta resolución (output de la red)
-TRAIN_LR_DIR = './data/train/LR'  # Archivos de baja resolución (input de la red)
-VAL_HR_DIR = './data/test/HR'     # Archivos de alta resolución para validación
-VAL_LR_DIR = './data/test/LR'     # Archivos de baja resolución para validación
-BATCH_SIZE = 8
-EPOCHS = 500
-LEARNING_RATE = 1e-4
+TRAIN_HR_DIR = './data/train/HR'    # Archivos de alta resolución (output de la red)
+TRAIN_LR_DIR = './data/train/LR'    # Archivos de baja resolución (input de la red)
+VAL_HR_DIR = './data/test/HR'       # Archivos de alta resolución para validación
+VAL_LR_DIR = './data/test/LR'       # Archivos de baja resolución para validación
+
+BATCH_SIZE = 8                      # Tamaño de lote
+EPOCHS = 500                        # Épocas
+LEARNING_RATE_G = 1e-4              # LR del generador
+LEARNING_RATE_D = 1e-4              # LR del discriminador
 
 try:
     import torch_directml
@@ -30,14 +33,14 @@ elif has_dml:
 else:
     DEVICE = 'cpu'
 
-def evaluate(model, dataloader, criterion, device):
+def evaluate(model_g, dataloader, criterion):
     """Evalúa el modelo en el conjunto de validación y devuelve la pérdida promedio."""
-    model.eval()
+    model_g.eval()
     total_loss = 0.0
     with torch.no_grad():
         for inputs, targets in dataloader:
-            inputs, targets = inputs.to(device), targets.to(device)
-            outputs = model(inputs)
+            inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+            outputs = model_g(inputs)
             loss = criterion(outputs, targets)
             total_loss += loss.item()
     return total_loss / len(dataloader)
@@ -59,75 +62,116 @@ def train():
         return
 
     num_workers = max(0, os.cpu_count()-1)
-    print(f"Dataset de entrenamiento cargado: {len(train_dataset)} elementos")
+    print(f"Cargados {len(train_dataset)} elementos de entrenamiento con shapes de entrada y salida: {train_dataset[0][0].shape} y {train_dataset[0][1].shape}")
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=num_workers, pin_memory=True)
-    print(f"Dataset de validación cargado: {len(val_dataset)} elementos")
+    print(f"Cargados {len(val_dataset)} elementos de validación con shapes de entrada y salida: {val_dataset[0][0].shape} y {val_dataset[0][1].shape}")
     val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=num_workers, pin_memory=True)
 
-    # Inicializar modelo
-    model = UNetAudio2D().to(DEVICE)
+    # Inicializar Modelos
+    model_g = UNetAudio2D().to(DEVICE)
+    model_d = MultiScaleDiscriminator().to(DEVICE)
 
-    # Inicializar Loss y Optimizer
-    # Loss combinada de MRSTFT, HF, pérdida compleja y mel spectrogram
-    # Optimizer AdamW
-    criterion = CombinedLoss(lambda_mrstft = 1.0, lambda_hf = 1.0, lambda_complex = 1.0, lambda_mel = 0.5).to(DEVICE)
-    optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4, betas=(0.9, 0.999)) 
+    # Inicializar Pérdidas
+    criterion_g = CombinedLoss(lambda_l1=0.5, lambda_mrstft=0.5).to(DEVICE)
 
-    # Scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10)
+    # Inicializar Optimizadores
+    optimizer_g = optim.AdamW(model_g.parameters(), lr=LEARNING_RATE_G, betas=(0.8, 0.99))
+    optimizer_d = optim.AdamW(model_d.parameters(), lr=LEARNING_RATE_D, betas=(0.8, 0.99))
+
+    # Schedulers
+    scheduler_g = optim.lr_scheduler.ReduceLROnPlateau(optimizer_g, mode='min', factor=0.5, patience=10)
+    scheduler_d = optim.lr_scheduler.ReduceLROnPlateau(optimizer_d, mode='min', factor=0.5, patience=10)
 
     print(f"Iniciando entrenamiento en {DEVICE}...")
 
     best_val_loss = float('inf')
     patience_earlystop = 50
+    warmup_epochs = 20
     epochs_no_improve = 0
 
     # Bucle de entrenamiento
     for epoch in range(EPOCHS):
-        model.train()
-        running_loss = 0.0
+        # Entrenar modelos
+        model_g.train()
+        model_d.train()
 
-        for inputs, targets in train_dataloader:
-            inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+        running_loss_g = 0.0
+        running_loss_d = 0.0
 
-            # Forward
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+        for i, (inputs, targets) in enumerate(train_dataloader):
+            inputs = inputs.to(DEVICE)
+            targets = targets.to(DEVICE)
+            
+            pred = model_g(inputs)
+            
+            # Solo considerar el discriminador después del warmup
+            if epoch >= warmup_epochs:
+                # Entrenar discriminador
+                optimizer_d.zero_grad(set_to_none=True)
 
+                with torch.no_grad():
+                    pred_wav_d, target_wav_d = criterion_g.get_waveforms(pred, targets)
+
+                y_d_rs, y_d_gs, _, _ = model_d(target_wav_d, pred_wav_d)
+                loss_d = DiscriminatorLoss.discriminator_loss(y_d_rs, y_d_gs)
+                loss_d.backward()
+                torch.nn.utils.clip_grad_norm_(model_d.parameters(), max_norm=1.0)
+                # Actualizar los pesos del modelo
+                optimizer_d.step()
+                running_loss_d += loss_d.item()
+            
+            # Entrenar generador
+            optimizer_g.zero_grad(set_to_none=True)
+            
+            if epoch >= warmup_epochs:
+                # Calcular pérdidas
+                pred_wav, target_wav = criterion_g.get_waveforms(pred, targets)
+                loss_g = criterion_g(pred, targets, pred_wav=pred_wav, target_wav=target_wav.detach())
+                y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
+                loss_adv = DiscriminatorLoss.generator_loss(y_d_gs)
+                loss_fm  = DiscriminatorLoss.feature_matching_loss(fmap_rs, fmap_gs)
+                loss_g = loss_g + loss_adv + loss_fm
+            else:
+                loss_g = criterion_g(pred, targets)
+            
             # Backward
-            optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-
+            loss_g.backward()
+            
             # Gradient clipping para evitar explosión de gradientes
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
+            torch.nn.utils.clip_grad_norm_(model_g.parameters(), max_norm=1.0)
+            
             # Actualizar los pesos del modelo
-            optimizer.step()
+            optimizer_g.step()
 
-            running_loss += loss.item()
+            running_loss_g += loss_g.item()
+        
+        # Métricas
+        train_loss_g = running_loss_g / len(train_dataloader)
+        train_loss_d = running_loss_d / len(train_dataloader)
 
-        train_loss = running_loss / len(train_dataloader)
+        # Evaluar generador en el conjunto de validación
+        val_loss = evaluate(model_g, val_dataloader, criterion_g)
 
-        # Evaluar en el conjunto de validación
-        val_loss = evaluate(model, val_dataloader, criterion, DEVICE)
+        print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
 
-        print(f"Epoch [{epoch+1}/{EPOCHS}] Train: {train_loss:.6f} | Val: {val_loss:.6f} | LR: {optimizer.param_groups[0]['lr']:.8f}")
-
-        # Scheduler basado en val_loss
-        scheduler.step(val_loss)
+        # Schedulers basados en val_loss
+        scheduler_g.step(val_loss)
+        scheduler_d.step(val_loss)
 
         # Guardar mejor modelo según val_loss
-        if epoch >= 5:  # Solo considerar guardar el modelo después de algunas épocas para evitar guardar modelos muy malos al inicio
+        if epoch >= warmup_epochs:  # Solo considerar guardar el modelo después de algunas épocas para evitar guardar modelos muy malos al inicio
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 epochs_no_improve = 0
-                torch.save(model.state_dict(), 'unet2D_superres.pt')
+                torch.save(model_g.state_dict(), 'unet2D_superres_best.pt')
                 print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
             else:
                 epochs_no_improve += 1
                 if epochs_no_improve >= patience_earlystop:
                     print(f"Early stopping en epoch {epoch+1}")
                     break
+        
+        torch.save(model_g.state_dict(), 'unet2D_superres.pt')
 
     print("Entrenamiento completado")
     print(f"Mejor loss alcanzado: {best_val_loss:.6f}")
