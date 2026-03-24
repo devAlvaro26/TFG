@@ -14,8 +14,8 @@ FRAGMENT_LENGTH = 65536
 
 class AudioSuperResDataset(Dataset):
     """
-    Cargar pares de audio (Alta Calidad - HR y Baja Calidad - LR),
-    dividirlos en fragmentos de FRAGMENT_LENGTH muestras y devolver
+    Carga pares de audio en Alta Calidad (HR) y Baja Calidad (LR),
+    divide en fragmentos de FRAGMENT_LENGTH muestras y devuelve
     sus representaciones STFT con shape (2, F, T).
 
     hr_dir: Directorio de los archivos en alta calidad (Ground Truth)
@@ -119,12 +119,17 @@ class AudioSuperResDataset(Dataset):
         return stft_ri
 
     def _normalize_stft(self, stft_ri):
-        """
-        Log-compresión del STFT para reducir el rango dinámico.
-        Preserva el signo: sign(x) * log1p(|x|)
-        """
-        sign = torch.sign(stft_ri)
-        return sign * torch.log1p(torch.abs(stft_ri))
+        """Compresión logarítmica de la magnitud, preservando la fase."""
+        real = stft_ri[0]
+        imag = stft_ri[1]
+        
+        magnitude = torch.sqrt(real**2 + imag**2 + 1e-8)
+        phase_cos = real / magnitude  # cos(phase)
+        phase_sin = imag / magnitude  # sin(phase)
+        
+        mag_compressed = torch.log1p(magnitude)
+        
+        return torch.stack([mag_compressed * phase_cos, mag_compressed * phase_sin], dim=0)
 
     def _pad_stft_to_pool_factor(self, stft):
         """

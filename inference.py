@@ -13,11 +13,11 @@ MODEL_PATH = 'unet2D_superres.pt'   # Archivo del modelo entrenado
 INF_DIR = './data/inference'        # Archivos de entrada
 OUTPUT_DIR = './results'            # Archivos de salida
 
-TARGET_SR = 44100       # Target sample rate
-POOL_FACTOR = 16        # 2^4 para 4 capas de pooling en UNet 2D
-N_FFT = 1024            # Tamaño de la FFT para STFT
-HOP_LENGTH = 256        # Salto entre ventanas STFT
-FRAGMENT_LENGTH = 65536
+TARGET_SR = 44100                   # Target sample rate
+POOL_FACTOR = 16                    # 2^4 para 4 capas de pooling en UNet 2D
+N_FFT = 1024                        # Tamaño de la FFT para STFT
+HOP_LENGTH = 256                    # Salto entre ventanas STFT
+FRAGMENT_LENGTH = 65536             # Longitud de los fragmentos en muestras
 
 try:
     import torch_directml
@@ -88,14 +88,22 @@ def stft_to_waveform(stft, n_fft=N_FFT, hop_length=HOP_LENGTH, length=None):
 
 
 def normalize_stft(stft):
-    """Log-compresión del STFT."""
-    sign = torch.sign(stft)
-    return sign * torch.log1p(torch.abs(stft))
+    """Log-compresión solo de la magnitud, preservando la fase."""
+    real, imag = stft[0], stft[1]
+    magnitude = torch.sqrt(real**2 + imag**2 + 1e-8)
+    phase_cos = real / magnitude
+    phase_sin = imag / magnitude
+    mag_compressed = torch.log1p(magnitude)
+    return torch.stack([mag_compressed * phase_cos, mag_compressed * phase_sin], dim=0)
 
 def denormalize_stft(stft):
-    """Inversa de la log-compresión: sign(x) * (exp(|x|) - 1)."""
-    sign = torch.sign(stft)
-    return sign * (torch.exp(torch.abs(stft)) - 1)
+    """Inversa de log-compresión."""
+    real, imag = stft[0], stft[1]
+    mag_compressed = torch.sqrt(real**2 + imag**2 + 1e-8)
+    phase_cos = real / mag_compressed
+    phase_sin = imag / mag_compressed
+    magnitude = torch.exp(mag_compressed) - 1
+    return torch.stack([magnitude * phase_cos, magnitude * phase_sin], dim=0)
 
 
 def pad_stft(stft, pool_factor=POOL_FACTOR):

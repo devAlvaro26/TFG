@@ -23,7 +23,7 @@ class AttentionGate(nn.Module):
         # Interpolar g para que tenga el mismo tamaño que x
         if g.shape[-2:] != x.shape[-2:]:
             g = F.interpolate(g, size=x.shape[-2:], mode="bilinear", align_corners=False)
-        # Calcular la atención
+        # Calcular atención
         att = self.sigmoid(self.psi(self.relu(self.W_g(g) + self.W_x(x))))
 
         return x * att
@@ -48,42 +48,81 @@ class DilatedBlock(nn.Module):
         return self.net(x) + x
 
 
+class ResBlock(nn.Module):
+    """Bloque Residual para Attention ResUNet."""
+    def __init__(self, in_ch, out_ch):
+        
+        super().__init__()
+        
+        self.conv1 = nn.Conv2d(in_ch, out_ch, kernel_size=(7,3), padding=(3,1))
+        self.norm1 = nn.GroupNorm(out_ch//4, out_ch) # GroupNorm para batchs pequeños
+        self.relu1 = nn.LeakyReLU(0.2, inplace=True)
+        
+        self.conv2 = nn.Conv2d(out_ch, out_ch, kernel_size=(7,3), padding=(3,1))
+        self.norm2 = nn.GroupNorm(out_ch//4, out_ch)
+        self.relu2 = nn.LeakyReLU(0.2, inplace=True)
+        
+        # Skip connection
+        if in_ch != out_ch:
+            self.skip = nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, kernel_size=1, bias=False),
+                nn.GroupNorm(out_ch//4, out_ch)
+            )
+        else:
+            self.skip = nn.Identity()
+
+    def forward(self, x):
+        identity = self.skip(x)
+        
+        out = self.conv1(x)
+        out = self.norm1(out)
+        out = self.relu1(out)
+        
+        out = self.conv2(out)
+        out = self.norm2(out)
+        
+        out += identity
+        out = self.relu2(out)
+        
+        return out
+
+
 class UNetAudio2D(nn.Module):
-    """Arquitectura UNet 2D adaptada para audio super resolution."""
+    """Arquitectura Attention Res-UNet 2D adaptada para audio super resolution."""
     def __init__(self):
 
         super().__init__()
 
         # Encoder
         # Entrada: (B, 2, F, T)
-        self.enc1 = self.conv_block(2, 32)
+        self.enc1 = ResBlock(2, 32)
         self.pool1 = nn.MaxPool2d((2,2))
 
-        self.enc2 = self.conv_block(32, 64)
+        self.enc2 = ResBlock(32, 64)
         self.pool2 = nn.MaxPool2d((2,2))
 
-        self.enc3 = self.conv_block(64, 128)
+        self.enc3 = ResBlock(64, 128)
         self.pool3 = nn.MaxPool2d((2,2))
 
-        self.enc4 = self.conv_block(128, 256)
+        self.enc4 = ResBlock(128, 256)
         self.pool4 = nn.MaxPool2d((2,2))
 
         # Bottleneck
-        self.bottleneck_conv = self.conv_block(256, 512)
+        self.bottleneck_conv = ResBlock(256, 512)
         self.bottleneck_dilated = DilatedBlock(512)
 
         # Decoder
         self.up4 = self.up_block(512,256)
-        self.dec4 = self.conv_block(512,256)
+        self.dec4 = ResBlock(512,256)
 
         self.up3 = self.up_block(256,128)
-        self.dec3 = self.conv_block(256,128)
+        self.dec3 = ResBlock(256,128)
 
         self.up2 = self.up_block(128,64)
-        self.dec2 = self.conv_block(128,64)
+        self.dec2 = ResBlock(128,64)
 
         self.up1 = self.up_block(64,32)
-        self.dec1 = self.conv_block(64,32)
+        self.dec1 = ResBlock(64,32)
 
         # Attention gates
         self.att4 = AttentionGate(256,256,128)
@@ -93,17 +132,6 @@ class UNetAudio2D(nn.Module):
 
         # Output
         self.final = nn.Conv2d(32,2,kernel_size=1)
-
-    def conv_block(self, in_ch, out_ch):
-        """Bloque convolucional"""
-        return nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, kernel_size=(7,3), padding=(3,1)),
-            nn.GroupNorm(out_ch//4, out_ch),    # GroupNorm para batchs pequeños
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(out_ch, out_ch, kernel_size=(7,3), padding=(3,1)),
-            nn.GroupNorm(out_ch//4, out_ch),
-            nn.LeakyReLU(0.2, inplace=True),
-        )
 
     def up_block(self, in_ch, out_ch):
         """Bloque de upsampling en frecuencia y tiempo"""

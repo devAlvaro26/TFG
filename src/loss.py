@@ -11,6 +11,7 @@ NFFT = 1024
 HOP_LENGTH = 256
 WIN_LENGTH = 1024
 SAMPLE_RATE = 44100
+FRAGMENT_LENGTH = 65536
 
 class STFTLoss(nn.Module):
     """Pérdida STFT."""
@@ -38,12 +39,8 @@ class STFTLoss(nn.Module):
             x_mag = torch.abs(x_stft).to(device)
             y_mag = torch.abs(y_stft).to(device)
         else:
-            x_stft = torch.stft(
-                x, self.n_fft, self.hop_length, self.win_length, self.window, return_complex=True
-            )
-            y_stft = torch.stft(
-                y, self.n_fft, self.hop_length, self.win_length, self.window, return_complex=True
-            )
+            x_stft = torch.stft(x, self.n_fft, self.hop_length, self.win_length, self.window, return_complex=True)
+            y_stft = torch.stft(y, self.n_fft, self.hop_length, self.win_length, self.window, return_complex=True)
 
             x_mag = torch.abs(x_stft)
             y_mag = torch.abs(y_stft)
@@ -111,8 +108,16 @@ class CombinedLoss(nn.Module):
 
     def _denormalize_stft(self, stft):
         """Inversa de log-compresión."""
-        sign = torch.sign(stft)
-        return sign * (torch.exp(torch.abs(stft)) - 1)
+        real = stft[:, 0]
+        imag = stft[:, 1]
+        
+        mag_compressed = torch.sqrt(real**2 + imag**2 + 1e-8)
+        phase_cos = real / mag_compressed
+        phase_sin = imag / mag_compressed
+        
+        magnitude = torch.exp(mag_compressed) - 1
+        
+        return torch.stack([magnitude * phase_cos, magnitude * phase_sin], dim=1)
 
     def _stft_to_waveform(self, stft_ri):
         """Aplica ISTFT."""
@@ -120,6 +125,11 @@ class CombinedLoss(nn.Module):
         valid_freq_bins = self.n_fft // 2 + 1
         if stft_ri.size(2) > valid_freq_bins:
             stft_ri = stft_ri[:, :, :valid_freq_bins, :]
+            
+        # Deshacer padding en tiempo
+        valid_time_frames = FRAGMENT_LENGTH // self.hop_length + 1
+        if stft_ri.size(3) > valid_time_frames:
+            stft_ri = stft_ri[:, :, :, :valid_time_frames]
 
         device = stft_ri.device
         if device.type in ['privateuseone', 'dml']:
@@ -131,7 +141,8 @@ class CombinedLoss(nn.Module):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.n_fft,
-                window=self.base_window.cpu()
+                window=self.base_window.cpu(),
+                length=FRAGMENT_LENGTH
             )
             return waveform.to(device)
         else:
@@ -141,7 +152,8 @@ class CombinedLoss(nn.Module):
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
                 win_length=self.n_fft,
-                window=self.base_window
+                window=self.base_window,
+                length=FRAGMENT_LENGTH
             )
             return waveform
 

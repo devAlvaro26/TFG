@@ -7,7 +7,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
-from src.discriminator import MultiScaleDiscriminator
+from src.discriminator import CombinedDiscriminator
 from src.loss import CombinedLoss, DiscriminatorLoss
 
 TRAIN_HR_DIR = './data/train/HR'    # Archivos de alta resolución (output de la red)
@@ -15,7 +15,7 @@ TRAIN_LR_DIR = './data/train/LR'    # Archivos de baja resolución (input de la 
 VAL_HR_DIR = './data/test/HR'       # Archivos de alta resolución para validación
 VAL_LR_DIR = './data/test/LR'       # Archivos de baja resolución para validación
 
-BATCH_SIZE = 8                      # Tamaño de lote
+BATCH_SIZE = 4                      # Tamaño de lote
 EPOCHS = 500                        # Épocas
 LEARNING_RATE_G = 1e-4              # LR del generador
 LEARNING_RATE_D = 1e-4              # LR del discriminador
@@ -69,7 +69,7 @@ def train():
 
     # Inicializar Modelos
     model_g = UNetAudio2D().to(DEVICE)
-    model_d = MultiScaleDiscriminator().to(DEVICE)
+    model_d = CombinedDiscriminator().to(DEVICE)
 
     # Inicializar Pérdidas
     criterion_g = CombinedLoss(lambda_l1=0.5, lambda_mrstft=0.5).to(DEVICE)
@@ -86,7 +86,7 @@ def train():
 
     best_val_loss = float('inf')
     patience_earlystop = 50
-    warmup_epochs = 20
+    warmup_epochs = 5
     epochs_no_improve = 0
 
     # Bucle de entrenamiento
@@ -102,30 +102,30 @@ def train():
             inputs = inputs.to(DEVICE)
             targets = targets.to(DEVICE)
             
+            # Entrenar generador
             pred = model_g(inputs)
+
+            # Obtener waveforms de LR y HR
+            pred_wav, target_wav = criterion_g.get_waveforms(pred, targets)
             
             # Solo considerar el discriminador después del warmup
             if epoch >= warmup_epochs:
-                # Entrenar discriminador
                 optimizer_d.zero_grad(set_to_none=True)
-
-                with torch.no_grad():
-                    pred_wav_d, target_wav_d = criterion_g.get_waveforms(pred, targets)
-
-                y_d_rs, y_d_gs, _, _ = model_d(target_wav_d, pred_wav_d)
+                # Entrenar discriminador
+                y_d_rs, y_d_gs, _, _ = model_d(target_wav.detach(), pred_wav.detach())
+                # Calcular pérdidas
                 loss_d = DiscriminatorLoss.discriminator_loss(y_d_rs, y_d_gs)
                 loss_d.backward()
+                # Gradient clipping para evitar explosión de gradientes
                 torch.nn.utils.clip_grad_norm_(model_d.parameters(), max_norm=1.0)
                 # Actualizar los pesos del modelo
                 optimizer_d.step()
                 running_loss_d += loss_d.item()
             
-            # Entrenar generador
             optimizer_g.zero_grad(set_to_none=True)
             
             if epoch >= warmup_epochs:
                 # Calcular pérdidas
-                pred_wav, target_wav = criterion_g.get_waveforms(pred, targets)
                 loss_g = criterion_g(pred, targets, pred_wav=pred_wav, target_wav=target_wav.detach())
                 y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
                 loss_adv = DiscriminatorLoss.generator_loss(y_d_gs)
@@ -152,7 +152,7 @@ def train():
         # Evaluar generador en el conjunto de validación
         val_loss = evaluate(model_g, val_dataloader, criterion_g)
 
-        print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
+        print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.6f}")
 
         # Schedulers basados en val_loss
         scheduler_g.step(val_loss)
