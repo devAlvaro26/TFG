@@ -134,7 +134,7 @@ class AudioSuperResDataset(Dataset):
     def _pad_stft_to_pool_factor(self, stft):
         """
         Asegura que tanto F como T sean divisibles por pool_factor.
-        Padding con ceros si es necesario.
+        Padding si es necesario.
         """
         _, freq_bins, time_frames = stft.shape
 
@@ -144,7 +144,7 @@ class AudioSuperResDataset(Dataset):
         pad_t = (self.pool_factor - (time_frames % self.pool_factor)) % self.pool_factor
 
         if pad_f > 0 or pad_t > 0:
-            stft = F.pad(stft, (0, pad_t, 0, pad_f))
+            stft = F.pad(stft, (0, pad_t, 0, pad_f), mode='reflect')
 
         return stft
 

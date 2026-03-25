@@ -17,8 +17,8 @@ VAL_LR_DIR = './data/test/LR'       # Archivos de baja resolución para validaci
 
 BATCH_SIZE = 4                      # Tamaño de lote
 EPOCHS = 500                        # Épocas
-LEARNING_RATE_G = 1e-4              # LR del generador
-LEARNING_RATE_D = 1e-4              # LR del discriminador
+LEARNING_RATE_G = 2e-4              # LR del generador
+LEARNING_RATE_D = 0.5e-4            # LR del discriminador
 
 try:
     import torch_directml
@@ -26,10 +26,10 @@ try:
 except ImportError:
     has_dml = False
 
-if torch.cuda.is_available():
-    DEVICE = 'cuda'
-elif has_dml:
+if has_dml:
     DEVICE = torch_directml.device()
+elif torch.cuda.is_available():
+    DEVICE = 'cuda'
 else:
     DEVICE = 'cpu'
 
@@ -72,7 +72,7 @@ def train():
     model_d = CombinedDiscriminator().to(DEVICE)
 
     # Inicializar Pérdidas
-    criterion_g = CombinedLoss(lambda_l1=0.5, lambda_mrstft=0.5).to(DEVICE)
+    criterion_g = CombinedLoss(lambda_l1=2.5, lambda_mrstft=2.5).to(DEVICE)
 
     # Inicializar Optimizadores
     optimizer_g = optim.AdamW(model_g.parameters(), lr=LEARNING_RATE_G, betas=(0.8, 0.99))
@@ -86,7 +86,7 @@ def train():
 
     best_val_loss = float('inf')
     patience_earlystop = 50
-    warmup_epochs = 5
+    warmup_epochs = 15
     epochs_no_improve = 0
 
     # Bucle de entrenamiento
@@ -128,9 +128,11 @@ def train():
                 # Calcular pérdidas
                 loss_g = criterion_g(pred, targets, pred_wav=pred_wav, target_wav=target_wav.detach())
                 y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
+                # Aumentar gradualmente el peso del discriminador
+                lambda_adv = min(0.1 + (epoch - warmup_epochs) * 0.02, 1.0)
                 loss_adv = DiscriminatorLoss.generator_loss(y_d_gs)
                 loss_fm  = DiscriminatorLoss.feature_matching_loss(fmap_rs, fmap_gs)
-                loss_g = loss_g + loss_adv + loss_fm
+                loss_g = loss_g + lambda_adv * loss_adv + loss_fm
             else:
                 loss_g = criterion_g(pred, targets)
             
@@ -152,7 +154,7 @@ def train():
         # Evaluar generador en el conjunto de validación
         val_loss = evaluate(model_g, val_dataloader, criterion_g)
 
-        print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.6f}")
+        print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
 
         # Schedulers basados en val_loss
         scheduler_g.step(val_loss)
