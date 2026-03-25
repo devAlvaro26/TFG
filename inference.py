@@ -25,22 +25,12 @@ try:
 except ImportError:
     has_dml = False
 
-if torch.cuda.is_available():
-    DEVICE = 'cuda'
-elif has_dml:
+if has_dml:
     DEVICE = torch_directml.device()
+elif torch.cuda.is_available():
+    DEVICE = 'cuda'
 else:
     DEVICE = 'cpu'
-
-# VOCODER para reconstrucción de fase (Opcional)
-try:
-    from bigvganinference import BigVGANInference
-    from bigvganinference.meldataset import get_mel_spectrogram
-    # bigvganinference para usar el modelo BigVGAN de NVIDIA y ajustar la fase
-    # https://github.com/NVIDIA/BigVGAN
-    HAS_BIGVGAN = True
-except ImportError:
-    HAS_BIGVGAN = False
 
 def save_audio(tensor, path, sample_rate):
     """Guarda una forma de onda en un archivo de audio."""
@@ -113,7 +103,7 @@ def pad_stft(stft, pool_factor=POOL_FACTOR):
     pad_t = (pool_factor - (time_frames % pool_factor)) % pool_factor
 
     if pad_f > 0 or pad_t > 0:
-        stft = torch.nn.functional.pad(stft, (0, pad_t, 0, pad_f))
+        stft = torch.nn.functional.pad(stft, (0, pad_t, 0, pad_f), mode='reflect')
 
     return stft, freq_bins, time_frames
 
@@ -186,6 +176,55 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, sample_rate, n_fft
     plt.close()
 
 
+def process_audio_in_chunks(model, stft, orig_f, orig_t, chunk_frames, overlap=32):
+    """
+    Procesa el STFT por chunks con overlap para evitar artefactos en los bordes.
+    chunk_frames debe ser compatible con pool_factor=16.
+    """
+    _, F, T = stft.shape
+    hop = chunk_frames - overlap
+    output = torch.zeros_like(stft)
+    weights = torch.zeros(T, device=stft.device)
+
+    # Ventana trapezoidal
+    window = torch.ones(chunk_frames, device=stft.device)
+    if overlap > 0:
+        window[:overlap] = torch.linspace(0, 1, overlap, device=stft.device)
+        window[-overlap:] = torch.linspace(1, 0, overlap, device=stft.device)
+
+    start = 0
+    while start < T:
+        end = min(start + chunk_frames, T)
+        chunk = stft[:, :, start:end]
+
+        # Pad si el chunk es más corto que chunk_frames
+        pad_t = chunk_frames - chunk.shape[-1]
+        if pad_t > 0:
+            chunk = torch.nn.functional.pad(chunk, (0, pad_t))
+
+        with torch.no_grad():
+            pred_chunk = model(chunk.unsqueeze(0)).squeeze(0)
+
+        actual_len = end - start
+        
+        w = window[:actual_len].clone()
+        # Evitar fade-in en el primer bloque de audio
+        if start == 0 and overlap > 0:
+             w[:overlap] = 1.0
+        # Evitar fade-out en el último bloque de audio
+        if end == T and overlap > 0:
+             w[-overlap:] = 1.0
+
+        output[:, :, start:end] += pred_chunk[:, :, :actual_len] * w
+        weights[start:end] += w
+
+        start += hop
+
+    # Normalizar por los pesos acumulados
+    output = output / weights.unsqueeze(0).unsqueeze(0)
+    return output
+
+
 def inference():
     """Realiza inferencia en los archivos de entrada y guardar los resultados."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -199,13 +238,6 @@ def inference():
         print(f"Error: No se encontró el archivo del modelo '{MODEL_PATH}'.")
         return
     model.eval()
-
-    # Cargar BigVGAN si está disponible
-    if HAS_BIGVGAN:
-        vocoder = BigVGANInference.from_pretrained(f"nvidia/bigvgan_v2_44khz_128band_{HOP_LENGTH}x").to(DEVICE)
-        vocoder.eval()
-    else:
-        print("BigVGAN no está disponible. Se usará la reconstrucción directa.")
 
     # Procesar archivos de inferencia
     files = [f for f in os.listdir(INF_DIR) if f.endswith('.wav')]
@@ -244,13 +276,13 @@ def inference():
         stft_input = waveform_to_stft(waveform_norm.to(DEVICE))
         stft_input = normalize_stft(stft_input)  # Log-compresión (igual que en dataset)
         stft_padded, orig_f, orig_t = pad_stft(stft_input)
-        stft_batch = stft_padded.unsqueeze(0)
 
-        # Inferencia U-Net
-        with torch.no_grad():
-            predicted_stft = model(stft_batch)
+        chunk_frames = FRAGMENT_LENGTH // HOP_LENGTH  # frames equivalentes a FRAGMENT_LENGTH muestras
+        chunk_frames = ((chunk_frames + POOL_FACTOR - 1) // POOL_FACTOR) * POOL_FACTOR  # alinear a pool_factor
 
-        predicted_stft = predicted_stft.squeeze(0)[:, :orig_f, :orig_t]
+        predicted_stft = process_audio_in_chunks(model, stft_padded, orig_f, orig_t, chunk_frames=chunk_frames)
+        predicted_stft = predicted_stft[:, :orig_f, :orig_t]
+
         predicted_stft = denormalize_stft(predicted_stft)  # Inversa de log-compresión
 
         # ISTFT con longitud exacta para evitar artefactos de corte
@@ -260,19 +292,6 @@ def inference():
         predicted_waveform = torch.nan_to_num(predicted_waveform, nan=0.0, posinf=1.0, neginf=-1.0)
         predicted_waveform = torch.clamp(predicted_waveform, -1.0, 1.0)
 
-        # Inferencia VOCODER BigVGAN
-        if HAS_BIGVGAN:
-            with torch.no_grad():
-                # get_mel_spectrogram espera waveform con shape (1, T)
-                mel_for_bigvgan = get_mel_spectrogram(predicted_waveform, vocoder.h).to(DEVICE)
-                # Sintetizar la onda usando BigVGAN
-                waveform_bigvgan = vocoder(mel_for_bigvgan).squeeze(0).cpu()  # (1, T)
-                waveform_bigvgan = waveform_bigvgan[:, :original_length]
-
-                # Sanitize BigVGAN output
-                waveform_bigvgan = torch.nan_to_num(waveform_bigvgan, nan=0.0, posinf=1.0, neginf=-1.0)
-                waveform_bigvgan = torch.clamp(waveform_bigvgan, -1.0, 1.0)
-
         base_name = os.path.splitext(filename)[0]
         save_path = os.path.join(OUTPUT_DIR, base_name)
         os.makedirs(save_path, exist_ok=True)
@@ -280,15 +299,6 @@ def inference():
         # Guardar resultados
         copy2(file_path, os.path.join(save_path, 'input.wav'))
         save_audio(predicted_waveform, os.path.join(save_path, 'super_res.wav'), TARGET_SR)
-
-        if HAS_BIGVGAN:
-            save_audio(waveform_bigvgan, os.path.join(save_path, 'super_res_BigVGAN.wav'), TARGET_SR)
-            save_spectrogram_plot(
-                input_for_plot,
-                waveform_bigvgan,
-                os.path.join(save_path, 'spectrogram_bigvgan.png'),
-                sample_rate=TARGET_SR,
-            )
 
         # Guardar gráficos de forma de onda y espectrograma
         save_waveform_plot(
