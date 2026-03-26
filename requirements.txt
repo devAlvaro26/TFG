@@ -1,7 +1,7 @@
 torch==2.4.1
 torchaudio==2.4.1
 torchvision==0.19.1
-numpy
-scipy
-soundfile
-matplotlib
+numpy==2.4.3
+scipy==1.17.1
+soundfile==0.13.1
+matplotlib==3.10.8

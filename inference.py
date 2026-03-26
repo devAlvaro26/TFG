@@ -9,7 +9,7 @@ from shutil import copy2
 import matplotlib.pyplot as plt
 from src.model import UNetAudio2D
 
-MODEL_PATH = 'unet2D_superres.pt'   # Archivo del modelo entrenado
+MODEL_PATH = 'unet2D_superres_best.pt'   # Archivo del modelo entrenado
 INF_DIR = './data/inference'        # Archivos de entrada
 OUTPUT_DIR = './results'            # Archivos de salida
 

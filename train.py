@@ -10,8 +10,8 @@ from src.model import UNetAudio2D
 from src.discriminator import CombinedDiscriminator
 from src.loss import CombinedLoss, DiscriminatorLoss
 
-TRAIN_HR_DIR = './data/train/HR'    # Archivos de alta resolución (output de la red)
-TRAIN_LR_DIR = './data/train/LR'    # Archivos de baja resolución (input de la red)
+TRAIN_HR_DIR = './data/train/HR'    # Archivos de alta resolución (ground truth)
+TRAIN_LR_DIR = './data/train/LR'    # Archivos de baja resolución (input)
 VAL_HR_DIR = './data/test/HR'       # Archivos de alta resolución para validación
 VAL_LR_DIR = './data/test/LR'       # Archivos de baja resolución para validación
 
@@ -72,7 +72,7 @@ def train():
     model_d = CombinedDiscriminator().to(DEVICE)
 
     # Inicializar Pérdidas
-    criterion_g = CombinedLoss(lambda_l1=2.5, lambda_mrstft=2.5).to(DEVICE)
+    criterion_g = CombinedLoss(lambda_l1=1.0, lambda_mrstft=1.0).to(DEVICE)
 
     # Inicializar Optimizadores
     optimizer_g = optim.AdamW(model_g.parameters(), lr=LEARNING_RATE_G, betas=(0.8, 0.99))
@@ -129,7 +129,7 @@ def train():
                 loss_g = criterion_g(pred, targets, pred_wav=pred_wav, target_wav=target_wav.detach())
                 y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
                 # Aumentar gradualmente el peso del discriminador
-                lambda_adv = min(0.1 + (epoch - warmup_epochs) * 0.02, 1.0)
+                lambda_adv = min(0.1 + (epoch - warmup_epochs) * 0.02, 0.5)
                 loss_adv = DiscriminatorLoss.generator_loss(y_d_gs)
                 loss_fm  = DiscriminatorLoss.feature_matching_loss(fmap_rs, fmap_gs)
                 loss_g = loss_g + lambda_adv * loss_adv + loss_fm

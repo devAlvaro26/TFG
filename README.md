@@ -1,17 +1,17 @@
-# SuperResolución de Audio con UNet 2D
+# SuperResolución de Audio con Attention Res-UNet 2D
 
-Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a 44.1kHz.
+Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a una frecuencia de muestreo de 44.1kHz.
 
 ## Características
 
-*   **Arquitectura Attention UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar magnitud y fase, `Attention Gates` y `Dilated Convolutions`.
+*   **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar magnitud y fase, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
-*   **Entrenamiento GAN y Pérdida Multi-objetivo**: Utiliza un Generador entrenado con `CombinedLoss` (Pérdida L1 en dominio del tiempo y MultiResolution STFT Loss) junto a un Discriminador Multi-Escala (`DiscriminatorLoss` con pérdida adversarial y feature matching) inspirado en HiFi-GAN y AERO.
+*   **Arquitectura GAN**: El proyecto utiliza una arquitectura GAN inspirada en HiFi-GAN y AERO, mediante discriminadores MPD y MSD.
+*   **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas L1, MR-STFT y GAN.
 *   **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
     - Produce gráficos comparativos de espectrograma para visualizar la reconstrucción de frecuencias.
-*   **Vocoder**: Utiliza de manera opcional el modelo `BigVGAN` para reconstruir la fase de la forma de onda.
 
 ## Dataset
 
@@ -27,23 +27,23 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 │   └── inference/          # Archivos .wav para procesar con el modelo
 ├── results/                # Salida de la inferencia (audio + gráficos)
 ├── src/
-│   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a STFT
-│   ├── model.py            # Definición de UNetAudio2D (Attention UNet) + AttentionGate
-│   ├── discriminator.py    # Definición del Discriminador Multi-Escala (MSD)
+│   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a pares STFT
+│   ├── model.py            # Definición de UNetAudio2D (Attention Res-UNet 2D)
+│   ├── discriminator.py    # Definición del Discriminador MSD y MPD
 │   ├── loss.py             # CombinedLoss (L1, MR-STFT) y DiscriminatorLoss
 │   └── downgrade.py        # Herramienta para generar pares LR desde HR
 ├── jupyter/
 │   ├── inference.ipynb     # Inferencia adaptada a cuaderno para ejecutar en GPU
 │   └── train.ipynb         # Entrenamiento adaptado a cuaderno para ejecutar en GPU
-├── train.py                # Script de entrenamiento con Scheduler y Early Stopping
-├── inference.py            # Script para ejecución y visualización de resultados
+├── train.py                # Script de entrenamiento del modelo
+├── inference.py            # Script para inferencia y visualización de resultados
 ├── requirements.txt        # Dependencias del proyecto
 └── unet2D_superres.pt      # Checkpoint del mejor modelo guardado
 ```
 
 ## Modelos entrenados
 
-*   [Repositorio modelo pre-entrenado](https://drive.google.com/file/d/1UEwjrHaIlYcPdnGjoN8Q2EL9kj2mPjiY/view?usp=sharing)
+*   [Repositorio modelo pre-entrenado](https://drive.google.com/file/d/1dxCMkGfHNDsXdcmxfNl1TRpjgO7KC5Gf/view?usp=sharing)
 
 ## Instalación
 
@@ -53,10 +53,10 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
     ```bash
     pip install -r requirements.txt
     ```
-3. Opcional: Instalar torch-directml para GPU de AMD y bigvganinference para reconstrucción de fase:
+3. Opcional: Instalar torch-directml para GPU de AMD:
 
     ```bash
-    pip install torch-directml==0.2.5.dev240914 bigvganinference==0.0.3
+    pip install torch-directml==0.2.5.dev240914
     ```
 
 ## Uso
@@ -104,12 +104,11 @@ Los cuadernos jupyter son versiones adaptadas para computación en gpu directame
 
 *   [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([GitHub](https://github.com/kuleshov/audio-super-res))
 *   [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([GitHub](https://github.com/slp-rl/aero))
-*   [BigVGAN: A Universal Neural Vocoder with Large-Scale Training](https://arxiv.org/abs/2206.04658) ([GitHub](https://github.com/NVIDIA/BigVGAN))
-*   [HiFi-GAN: Generative Adversarial Networks for Efficient and High Fidelity Speech Synthesis](https://arxiv.org/abs/2010.05646)
+*   [HiFi-GAN: Generative Adversarial Networks for Efficient and High Fidelity Speech Synthesis](https://arxiv.org/abs/2010.05646) ([GitHub](https://github.com/jik876/hifi-gan))
 *   [Versatile_Audio_Super_Resolution](https://github.com/haoheliu/versatile_audio_super_resolution)
 
 
-## Desarrollado con las siguientes herramientas
+## Desarrollado con los siguientes paquetes
 
 *   Python 3.12.10
 *   torch 2.4.1

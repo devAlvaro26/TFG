@@ -5,7 +5,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils import weight_norm, spectral_norm
+from torch.nn.utils.parametrizations import weight_norm, spectral_norm
 
 
 def get_padding(kernel_size, dilation=1):
@@ -108,9 +108,10 @@ class MultiScaleDiscriminator(torch.nn.Module):
         self.discriminators = nn.ModuleList([
             DiscriminatorS(use_spectral_norm=True),
             DiscriminatorS(),
+            DiscriminatorS(),
         ])
         self.meanpools = nn.ModuleList([
-            nn.AvgPool1d(4, 2, padding=2),
+            nn.AvgPool1d(4, 2, padding=2),nn.AvgPool1d(4, 2, padding=2)
         ])
 
     def forward(self, y, y_hat):
