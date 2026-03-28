@@ -6,6 +6,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
+from torchmetrics.audio.stoi import ShortTimeObjectiveIntelligibility
 
 NFFT = 1024
 HOP_LENGTH = 256
@@ -234,3 +236,35 @@ class DiscriminatorLoss(nn.Module):
             for rl, gl in zip(dr, dg):
                 loss += torch.mean(torch.abs(rl - gl))
         return loss * 2 # 2x FM loss
+
+class LossMetrics(nn.Module):
+    """Pérdidas para métricas de calidad de audio."""
+    @staticmethod
+    def sisdr_loss(pred_wav, target_wav):
+        """Pérdida SI-SDR."""
+        if pred_wav.ndim == 3 and pred_wav.size(1) == 1:
+            pred_wav = pred_wav.squeeze(1)
+            target_wav = target_wav.squeeze(1)
+        sisdr = ScaleInvariantSignalDistortionRatio().to(pred_wav.device)
+        return sisdr(pred_wav, target_wav)
+    
+    @staticmethod
+    def stoi_loss(pred_wav, target_wav):
+        """Pérdida STOI."""
+        if pred_wav.ndim == 3 and pred_wav.size(1) == 1:
+            pred_wav = pred_wav.squeeze(1)
+            target_wav = target_wav.squeeze(1)
+        stoi = ShortTimeObjectiveIntelligibility(SAMPLE_RATE).to(pred_wav.device)
+        return 1-stoi(pred_wav, target_wav)
+
+    @staticmethod
+    def lsd_loss(x, y, eps=1e-8):
+        """Pérdida LSD."""
+        Sx = torch.abs(x)
+        Sy = torch.abs(y)
+
+        log_Sx = torch.log(Sx + eps)
+        log_Sy = torch.log(Sy + eps)
+
+        lsd = torch.mean((log_Sx - log_Sy) ** 2, dim=(-2, -1))
+        return torch.mean(torch.sqrt(lsd))

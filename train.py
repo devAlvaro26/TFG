@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from src.dataset import AudioSuperResDataset
 from src.model import UNetAudio2D
 from src.discriminator import CombinedDiscriminator
-from src.loss import CombinedLoss, DiscriminatorLoss
+from src.loss import CombinedLoss, DiscriminatorLoss, LossMetrics
 
 TRAIN_HR_DIR = './data/train/HR'    # Archivos de alta resolución (ground truth)
 TRAIN_LR_DIR = './data/train/LR'    # Archivos de baja resolución (input)
@@ -33,17 +33,23 @@ elif torch.cuda.is_available():
 else:
     DEVICE = 'cpu'
 
-def evaluate(model_g, dataloader, criterion):
+def evaluate(model_g, dataloader, criterion, pred_wav, target_wav):
     """Evalúa el modelo en el conjunto de validación y devuelve la pérdida promedio."""
     model_g.eval()
     total_loss = 0.0
+    total_sisdr = 0.0
+    total_stoi = 0.0
+    total_lsd = 0.0
     with torch.no_grad():
         for inputs, targets in dataloader:
             inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
             outputs = model_g(inputs)
             loss = criterion(outputs, targets)
             total_loss += loss.item()
-    return total_loss / len(dataloader)
+            total_sisdr += LossMetrics.sisdr_loss(pred_wav, target_wav)
+            total_stoi += LossMetrics.stoi_loss(pred_wav, target_wav)
+            total_lsd += LossMetrics.lsd_loss(outputs, targets)
+    return total_loss / len(dataloader), total_sisdr / len(dataloader), total_stoi / len(dataloader), total_lsd / len(dataloader)
 
 def train():
     """Entrenar el modelo"""
@@ -152,9 +158,10 @@ def train():
         train_loss_d = running_loss_d / len(train_dataloader)
 
         # Evaluar generador en el conjunto de validación
-        val_loss = evaluate(model_g, val_dataloader, criterion_g)
+        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(model_g, val_dataloader, criterion_g, pred_wav, target_wav)
 
         print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
+        print(f"Métricas de calidad: SI-SDR: {val_sisdr:.6f} | STOI: {val_stoi:.6f} | LSD: {val_lsd:.6f}")
 
         # Schedulers basados en val_loss
         scheduler_g.step(val_loss)
