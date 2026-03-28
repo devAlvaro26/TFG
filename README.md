@@ -77,6 +77,12 @@ Para entrenar el modelo, es necesario un dataset de pares de archivos de audio d
 
 El script entrenará el modelo y guardará el mejor checkpoint en `unet2D_superres.pt` basado en la pérdida de validación. Utiliza un sistema de *Early Stopping* si la pérdida no mejora durante varias épocas.
 
+Para visualizar las curvas de entrenamiento y validación, se puede utilizar TensorBoard:
+
+```bash
+tensorboard --logdir=./runs
+```
+
 ### 2. Inferencia
 
 Para probar el modelo en nuevos archivos de audio:
@@ -115,6 +121,8 @@ Los cuadernos jupyter son versiones adaptadas para computación en gpu directame
 *   torchaudio 2.4.1
 *   torchvision 0.19.1
 *   torchmetrics 1.9.0
+*   tensorboard 2.20.0
+*   setuptools 74.0.0
 *   pystoi
 *   numpy
 *   matplotlib

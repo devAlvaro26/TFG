@@ -2,6 +2,8 @@ torch==2.4.1
 torchaudio==2.4.1
 torchvision==0.19.1
 torchmetrics==1.9.0
+setuptools==74.0.0
+tensorboard==2.20.0
 pystoi==0.4.1
 numpy==2.4.3
 scipy==1.17.1

@@ -5,8 +5,9 @@ import os
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from src.dataset import AudioSuperResDataset
+from torch.utils.tensorboard import SummaryWriter
 from src.model import UNetAudio2D
+from src.dataset import AudioSuperResDataset
 from src.discriminator import CombinedDiscriminator
 from src.loss import CombinedLoss, DiscriminatorLoss, LossMetrics
 
@@ -33,7 +34,7 @@ elif torch.cuda.is_available():
 else:
     DEVICE = 'cpu'
 
-def evaluate(model_g, dataloader, criterion, pred_wav, target_wav):
+def evaluate(model_g, dataloader, criterion):
     """Evalúa el modelo en el conjunto de validación y devuelve la pérdida promedio."""
     model_g.eval()
     total_loss = 0.0
@@ -46,9 +47,10 @@ def evaluate(model_g, dataloader, criterion, pred_wav, target_wav):
             outputs = model_g(inputs)
             loss = criterion(outputs, targets)
             total_loss += loss.item()
+            pred_wav, target_wav = criterion.get_waveforms(outputs, targets)
             total_sisdr += LossMetrics.sisdr_loss(pred_wav, target_wav)
             total_stoi += LossMetrics.stoi_loss(pred_wav, target_wav)
-            total_lsd += LossMetrics.lsd_loss(outputs, targets)
+            total_lsd += LossMetrics.lsd_loss(pred_wav, target_wav)
     return total_loss / len(dataloader), total_sisdr / len(dataloader), total_stoi / len(dataloader), total_lsd / len(dataloader)
 
 def train():
@@ -87,6 +89,9 @@ def train():
     # Schedulers
     scheduler_g = optim.lr_scheduler.ReduceLROnPlateau(optimizer_g, mode='min', factor=0.5, patience=10)
     scheduler_d = optim.lr_scheduler.ReduceLROnPlateau(optimizer_d, mode='min', factor=0.5, patience=10)
+
+    # Inicializar TensorBoard
+    writer = SummaryWriter(log_dir='./runs')
 
     print(f"Iniciando entrenamiento en {DEVICE}...")
 
@@ -158,14 +163,23 @@ def train():
         train_loss_d = running_loss_d / len(train_dataloader)
 
         # Evaluar generador en el conjunto de validación
-        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(model_g, val_dataloader, criterion_g, pred_wav, target_wav)
+        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(model_g, val_dataloader, criterion_g)
 
         print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
         print(f"Métricas de calidad: SI-SDR: {val_sisdr:.6f} | STOI: {val_stoi:.6f} | LSD: {val_lsd:.6f}")
 
-        # Schedulers basados en val_loss
+        # Registrar métricas en TensorBoard
+        writer.add_scalars('Loss/train', {'generator': train_loss_g, 'discriminator': train_loss_d}, epoch)
+        writer.add_scalar('Loss/val', val_loss, epoch)
+        writer.add_scalar('Metrics/SI-SDR', val_sisdr, epoch)
+        writer.add_scalar('Metrics/STOI', val_stoi, epoch)
+        writer.add_scalar('Metrics/LSD', val_lsd, epoch)
+        writer.add_scalar('LearningRate/generator', optimizer_g.param_groups[0]['lr'], epoch)
+        writer.add_scalar('LearningRate/discriminator', optimizer_d.param_groups[0]['lr'], epoch)
+
+        # Actualizar schedulers
         scheduler_g.step(val_loss)
-        scheduler_d.step(val_loss)
+        scheduler_d.step(train_loss_d)
 
         # Guardar mejor modelo según val_loss
         if epoch >= warmup_epochs:  # Solo considerar guardar el modelo después de algunas épocas para evitar guardar modelos muy malos al inicio
@@ -182,6 +196,7 @@ def train():
         
         torch.save(model_g.state_dict(), 'unet2D_superres.pt')
 
+    writer.close()
     print("Entrenamiento completado")
     print(f"Mejor loss alcanzado: {best_val_loss:.6f}")
 

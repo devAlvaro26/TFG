@@ -13,3 +13,4 @@ data/test/*.wav
 data/test/
 data/train/
 temp/
+runs/

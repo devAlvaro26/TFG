@@ -255,16 +255,25 @@ class LossMetrics(nn.Module):
             pred_wav = pred_wav.squeeze(1)
             target_wav = target_wav.squeeze(1)
         stoi = ShortTimeObjectiveIntelligibility(SAMPLE_RATE).to(pred_wav.device)
-        return 1-stoi(pred_wav, target_wav)
+        return stoi(pred_wav, target_wav)
 
     @staticmethod
-    def lsd_loss(x, y, eps=1e-8):
-        """Pérdida LSD."""
-        Sx = torch.abs(x)
-        Sy = torch.abs(y)
+    def lsd_loss(pred_wav, target_wav, n_fft=NFFT, hop_length=HOP_LENGTH, eps=1e-8):
+        """Pérdida LSD"""
+        device = pred_wav.device
+        if device.type in ['privateuseone', 'dml']:
+            # Workaround para DirectML
+            window = torch.hann_window(n_fft).cpu()
+            pred_wav = pred_wav.cpu()
+            target_wav = target_wav.cpu()
+        else:
+            window = torch.hann_window(n_fft).to(device)
 
-        log_Sx = torch.log(Sx + eps)
-        log_Sy = torch.log(Sy + eps)
-
-        lsd = torch.mean((log_Sx - log_Sy) ** 2, dim=(-2, -1))
-        return torch.mean(torch.sqrt(lsd))
+        if pred_wav.ndim == 3 and pred_wav.size(1) == 1:
+            pred_wav = pred_wav.squeeze(1)
+            target_wav = target_wav.squeeze(1)
+        
+        Sx = torch.abs(torch.stft(pred_wav, n_fft, hop_length, window=window, return_complex=True))
+        Sy = torch.abs(torch.stft(target_wav, n_fft, hop_length, window=window, return_complex=True))
+        lsd = torch.mean((torch.log(Sx + eps) - torch.log(Sy + eps)) ** 2, dim=(-2, -1))
+        return torch.mean(torch.sqrt(lsd)).item()
