@@ -19,7 +19,7 @@ VAL_LR_DIR = './data/test/LR'       # Archivos de baja resolución para validaci
 BATCH_SIZE = 4                      # Tamaño de lote
 EPOCHS = 500                        # Épocas
 LEARNING_RATE_G = 2e-4              # LR del generador
-LEARNING_RATE_D = 0.5e-4            # LR del discriminador
+LEARNING_RATE_D = 1e-4            # LR del discriminador
 
 try:
     import torch_directml
@@ -118,24 +118,28 @@ def train():
 
             # Obtener waveforms de LR y HR
             pred_wav, target_wav = criterion_g.get_waveforms(pred, targets)
-            
-            # Solo considerar el discriminador después del warmup
-            if epoch >= warmup_epochs:
-                optimizer_d.zero_grad(set_to_none=True)
-                # Entrenar discriminador
-                y_d_rs, y_d_gs, _, _ = model_d(target_wav.detach(), pred_wav.detach())
-                # Calcular pérdidas
-                loss_d = DiscriminatorLoss.discriminator_loss(y_d_rs, y_d_gs)
-                loss_d.backward()
-                # Gradient clipping para evitar explosión de gradientes
-                torch.nn.utils.clip_grad_norm_(model_d.parameters(), max_norm=1.0)
-                # Actualizar los pesos del modelo
-                optimizer_d.step()
-                running_loss_d += loss_d.item()
-            
+
+            # Entrenar discriminador
+            optimizer_d.zero_grad(set_to_none=True)
+            y_d_rs, y_d_gs, _, _ = model_d(target_wav.detach(), pred_wav.detach())
+            loss_d = DiscriminatorLoss.discriminator_loss(y_d_rs, y_d_gs)
+
+            # Backward
+            loss_d.backward()
+
+            # Gradient clipping para evitar explosión de gradientes
+            torch.nn.utils.clip_grad_norm_(model_d.parameters(), max_norm=1.0)
+
+            # Actualizar los pesos del modelo
+            optimizer_d.step()
+
+            # Acumular pérdidas
+            running_loss_d += loss_d.item()
+
             optimizer_g.zero_grad(set_to_none=True)
             
-            if epoch >= warmup_epochs:
+            # Perdidas del generador
+            if epoch >= warmup_epochs:  # Contemplar las perdidas cruzadas si ha pasado el warmup
                 # Calcular pérdidas
                 loss_g = criterion_g(pred, targets, pred_wav=pred_wav, target_wav=target_wav.detach())
                 y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
@@ -156,6 +160,7 @@ def train():
             # Actualizar los pesos del modelo
             optimizer_g.step()
 
+            # Acumular pérdidas
             running_loss_g += loss_g.item()
         
         # Métricas
@@ -177,12 +182,12 @@ def train():
         writer.add_scalar('LearningRate/generator', optimizer_g.param_groups[0]['lr'], epoch)
         writer.add_scalar('LearningRate/discriminator', optimizer_d.param_groups[0]['lr'], epoch)
 
-        # Actualizar schedulers
-        scheduler_g.step(val_loss)
-        scheduler_d.step(train_loss_d)
-
         # Guardar mejor modelo según val_loss
-        if epoch >= warmup_epochs:  # Solo considerar guardar el modelo después de algunas épocas para evitar guardar modelos muy malos al inicio
+        if epoch >= warmup_epochs:
+            # Actualizar schedulers
+            scheduler_g.step(val_loss)
+            scheduler_d.step(train_loss_d)
+            # Solo considerar guardar el modelo después de algunas épocas para evitar guardar modelos muy malos al inicio
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 epochs_no_improve = 0
