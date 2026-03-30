@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from src.model import UNetAudio2D
 from src.dataset import AudioSuperResDataset
 from src.discriminator import CombinedDiscriminator
-from src.loss import CombinedLoss, DiscriminatorLoss, LossMetrics
+from src.loss import CombinedLoss, DiscriminatorLoss, LossMetrics, MelSpectrogramLoss
 
 TRAIN_HR_DIR = './data/train/HR'    # Archivos de alta resolución (ground truth)
 TRAIN_LR_DIR = './data/train/LR'    # Archivos de baja resolución (input)
@@ -19,7 +19,7 @@ VAL_LR_DIR = './data/test/LR'       # Archivos de baja resolución para validaci
 BATCH_SIZE = 4                      # Tamaño de lote
 EPOCHS = 500                        # Épocas
 LEARNING_RATE_G = 2e-4              # LR del generador
-LEARNING_RATE_D = 1e-4            # LR del discriminador
+LEARNING_RATE_D = 1e-4              # LR del discriminador
 
 try:
     import torch_directml
@@ -81,6 +81,7 @@ def train():
 
     # Inicializar Pérdidas
     criterion_g = CombinedLoss(lambda_l1=1.0, lambda_mrstft=1.0).to(DEVICE)
+    criterion_mel = MelSpectrogramLoss(n_mels=80).to(DEVICE)
 
     # Inicializar Optimizadores
     optimizer_g = optim.AdamW(model_g.parameters(), lr=LEARNING_RATE_G, betas=(0.8, 0.99))
@@ -95,10 +96,15 @@ def train():
 
     print(f"Iniciando entrenamiento en {DEVICE}...")
 
+    # Early stopping
     best_val_loss = float('inf')
     patience_earlystop = 50
-    warmup_epochs = 15
     epochs_no_improve = 0
+
+    # Pesos de las pérdidas
+    lambda_adv = 1.0
+    lambda_fm = 2.0
+    lambda_mel = 45.0
 
     # Bucle de entrenamiento
     for epoch in range(EPOCHS):
@@ -139,17 +145,11 @@ def train():
             optimizer_g.zero_grad(set_to_none=True)
             
             # Perdidas del generador
-            if epoch >= warmup_epochs:  # Contemplar las perdidas cruzadas si ha pasado el warmup
-                # Calcular pérdidas
-                loss_g = criterion_g(pred, targets, pred_wav=pred_wav, target_wav=target_wav.detach())
-                y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
-                # Aumentar gradualmente el peso del discriminador
-                lambda_adv = min(0.1 + (epoch - warmup_epochs) * 0.02, 0.5)
-                loss_adv = DiscriminatorLoss.generator_loss(y_d_gs)
-                loss_fm  = DiscriminatorLoss.feature_matching_loss(fmap_rs, fmap_gs)
-                loss_g = loss_g + lambda_adv * loss_adv + loss_fm
-            else:
-                loss_g = criterion_g(pred, targets)
+            y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
+            loss_adv = DiscriminatorLoss.generator_loss(y_d_gs)
+            loss_fm  = DiscriminatorLoss.feature_matching_loss(fmap_rs, fmap_gs)
+            loss_mel = criterion_mel(pred_wav, target_wav.detach())
+            loss_g = lambda_adv * loss_adv + lambda_fm * loss_fm + lambda_mel * loss_mel
             
             # Backward
             loss_g.backward()
@@ -182,22 +182,21 @@ def train():
         writer.add_scalar('LearningRate/generator', optimizer_g.param_groups[0]['lr'], epoch)
         writer.add_scalar('LearningRate/discriminator', optimizer_d.param_groups[0]['lr'], epoch)
 
-        # Guardar mejor modelo según val_loss
-        if epoch >= warmup_epochs:
-            # Actualizar schedulers
-            scheduler_g.step(val_loss)
-            scheduler_d.step(train_loss_d)
-            # Solo considerar guardar el modelo después de algunas épocas para evitar guardar modelos muy malos al inicio
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                epochs_no_improve = 0
-                torch.save(model_g.state_dict(), 'unet2D_superres_best.pt')
-                print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
-            else:
-                epochs_no_improve += 1
-                if epochs_no_improve >= patience_earlystop:
-                    print(f"Early stopping en epoch {epoch+1}")
-                    break
+        # Actualizar schedulers
+        scheduler_g.step(val_loss)
+        scheduler_d.step(train_loss_d)
+
+        # Guardar mejor modelo
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_no_improve = 0
+            torch.save(model_g.state_dict(), 'unet2D_superres_best.pt')
+            print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience_earlystop:
+                print(f"Early stopping en epoch {epoch+1}")
+                break
         
         torch.save(model_g.state_dict(), 'unet2D_superres.pt')
 

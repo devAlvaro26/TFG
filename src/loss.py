@@ -6,6 +6,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchaudio.transforms import MelSpectrogram
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
 from torchmetrics.audio.stoi import ShortTimeObjectiveIntelligibility
 
@@ -235,7 +236,45 @@ class DiscriminatorLoss(nn.Module):
         for dr, dg in zip(fmap_r, fmap_g):
             for rl, gl in zip(dr, dg):
                 loss += torch.mean(torch.abs(rl - gl))
-        return loss * 2 # 2x FM loss
+        return loss
+
+class MelSpectrogramLoss(nn.Module):
+    """
+    Pérdida basada en Mel-Spectrogram.
+    """
+    def __init__(self, sample_rate=SAMPLE_RATE, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH, n_mels=80):
+
+        super().__init__()
+
+        self.mel_spec = MelSpectrogram(
+            sample_rate=sample_rate,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            win_length=win_length,
+            n_mels=n_mels,
+            center=True,
+            power=1.0,
+            norm="slaney",
+            mel_scale="slaney",
+        )
+
+    def forward(self, pred_wav, target_wav):
+        if pred_wav.ndim == 3:
+            pred_wav = pred_wav.squeeze(1)
+        if target_wav.ndim == 3:
+            target_wav = target_wav.squeeze(1)
+
+        device = pred_wav.device
+        # Workaround para DirectML
+        if device.type in ['privateuseone', 'dml']:
+            self.mel_spec = self.mel_spec.cpu()
+            pred_mel = torch.log(self.mel_spec(pred_wav.cpu()) + 1e-8)
+            target_mel = torch.log(self.mel_spec(target_wav.cpu()) + 1e-8)
+        else:
+            pred_mel = torch.log(self.mel_spec(pred_wav) + 1e-8)
+            target_mel = torch.log(self.mel_spec(target_wav) + 1e-8)
+
+        return F.l1_loss(pred_mel, target_mel).to(device)
 
 class LossMetrics(nn.Module):
     """Pérdidas para métricas de calidad de audio."""
