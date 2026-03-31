@@ -35,15 +35,16 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 ├── jupyter/
 │   ├── inference.ipynb     # Inferencia adaptada a cuaderno para ejecutar en GPU
 │   └── train.ipynb         # Entrenamiento adaptado a cuaderno para ejecutar en GPU
+├── runs/                   # Tensorboard logs
 ├── train.py                # Script de entrenamiento del modelo
 ├── inference.py            # Script para inferencia y visualización de resultados
 ├── requirements.txt        # Dependencias del proyecto
-└── unet2D_superres.pt      # Checkpoint del mejor modelo guardado
+└── unet2D_superres.pt      # Checkpoint del modelo guardado
 ```
 
 ## Modelos entrenados
 
-*   [Repositorio modelo pre-entrenado](https://drive.google.com/file/d/1dxCMkGfHNDsXdcmxfNl1TRpjgO7KC5Gf/view?usp=sharing)
+*   [Repositorio modelo pre-entrenado](https://drive.google.com/file/d/1JBPaXIf8UnDen97v6bCirutgyeG8p7xl/view?usp=sharing)
 
 ## Instalación
 
