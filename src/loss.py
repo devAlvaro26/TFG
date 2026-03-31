@@ -1,7 +1,8 @@
 # Loss para Audio Super-Resolución y el Discriminador
 # Este script contiene las funciones de pérdida para entrenar la red neuronal, calculando
 # la pérdida en el dominio del tiempo y en el dominio de la frecuencia.
-# Basado en la Loss implementada en AERO: https://github.com/slp-rl/aero
+# Loss de validación basado en la Loss implementada en AERO: https://github.com/slp-rl/aero
+# Loss de entrenamiento basado en la Loss implementada en HiFiGAN: https://github.com/jik876/hifi-gan
 
 import torch
 import torch.nn as nn

@@ -278,7 +278,6 @@ def inference():
         stft_padded, orig_f, orig_t = pad_stft(stft_input)
 
         chunk_frames = FRAGMENT_LENGTH // HOP_LENGTH  # frames equivalentes a FRAGMENT_LENGTH muestras
-        chunk_frames = ((chunk_frames + POOL_FACTOR - 1) // POOL_FACTOR) * POOL_FACTOR  # alinear a pool_factor
 
         predicted_stft = process_audio_in_chunks(model, stft_padded, orig_f, orig_t, chunk_frames=chunk_frames)
         predicted_stft = predicted_stft[:, :orig_f, :orig_t]
