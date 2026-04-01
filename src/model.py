@@ -1,14 +1,19 @@
-# Modelo Unet 2D para Audio Super Resolution
+# Modelo Attention Res-UNet 2D para Audio Super Resolution
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class AttentionGate(nn.Module):
-    """Módulo de atención para ponderar skip connections"""
+    """Módulo de atención para ponderar skip connections."""
     def __init__(self, F_g, F_l, F_int):
-
+        """
+        Inicializa el módulo de atención.
+        Args:
+            F_g (int): Número de canales del gating signal.
+            F_l (int): Número de canales de la skip connection.
+            F_int (int): Número de canales intermedios.
+        """
         super().__init__()
 
         # Basado en el paper "https://arxiv.org/abs/1804.03999"
@@ -30,9 +35,13 @@ class AttentionGate(nn.Module):
 
 
 class DilatedBlock(nn.Module):
-    """Bloque con capas convolucionales dilatadas para capturar contexto de largo alcance sin perder resolución."""
+    """Bloque con capas convolucionales dilatadas para capturar contexto de largo alcance."""
     def __init__(self, channels):
-
+        """
+        Inicializa el bloque dilatado.
+        Args:
+            channels (int): Número de canales de entrada y salida.
+        """
         super().__init__()
 
         self.net = nn.Sequential(
@@ -49,9 +58,14 @@ class DilatedBlock(nn.Module):
 
 
 class ResBlock(nn.Module):
-    """Bloque Residual para Attention ResUNet."""
+    """Bloque Residual para Attention Res-UNet."""
     def __init__(self, in_ch, out_ch):
-        
+        """
+        Inicializa el bloque residual.
+        Args:
+            in_ch (int): Número de canales de entrada.
+            out_ch (int): Número de canales de salida.
+        """
         super().__init__()
         
         self.conv1 = nn.Conv2d(in_ch, out_ch, kernel_size=(7,3), padding=(3,1))
@@ -88,9 +102,12 @@ class ResBlock(nn.Module):
 
 
 class UNetAudio2D(nn.Module):
-    """Arquitectura Attention Res-UNet 2D adaptada para audio super resolution."""
+    """
+    Modelo Attention Res-UNet 2D para super resolución de audio.
+    Entrada y salida con shape (B, 2, F, T).
+    """
     def __init__(self):
-
+        """Inicializa la arquitectura UNet con encoder, bottleneck y decoder."""
         super().__init__()
 
         # Encoder
@@ -134,7 +151,14 @@ class UNetAudio2D(nn.Module):
         self.final = nn.Conv2d(32,2,kernel_size=1)
 
     def up_block(self, in_ch, out_ch):
-        """Bloque de upsampling en frecuencia y tiempo"""
+        """
+        Crea un bloque de upsampling con PixelShuffle.
+        Args:
+            in_ch (int): Número de canales de entrada.
+            out_ch (int): Número de canales de salida.
+        Returns:
+            nn.Sequential: Bloque de upsampling en frecuencia y tiempo.
+        """
         return nn.Sequential(
             nn.Conv2d(in_ch, out_ch * 4, kernel_size=3, padding=1),
             nn.PixelShuffle(2),  # sub-pixel upsampling
@@ -142,10 +166,16 @@ class UNetAudio2D(nn.Module):
         )
 
     def match_size(self, x, ref):
-        """Asegura que x tenga el mismo tamaño que ref"""
+        """
+        Asegura que x tenga el mismo tamaño espacial que ref.
+        Args:
+            x (torch.Tensor): Tensor a redimensionar.
+            ref (torch.Tensor): Tensor de referencia para el tamaño.
+        Returns:
+            torch.Tensor: Tensor x interpolado al tamaño de ref.
+        """
         if x.shape[-2:] != ref.shape[-2:]:
             x = F.interpolate(x, size=ref.shape[-2:], mode="bilinear", align_corners=False)
-
         return x
 
     def forward(self, x):

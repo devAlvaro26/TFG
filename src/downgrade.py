@@ -1,3 +1,5 @@
+# Script para degradar archivos de audio HR a baja resolución
+
 import os
 import torchaudio
 from torchaudio import functional as F

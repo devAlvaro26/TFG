@@ -4,7 +4,7 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 
 ## Características
 
-*   **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar magnitud y fase, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
+*   **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar el canael real e imaginario, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
 *   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
 *   **Arquitectura GAN**: El proyecto utiliza una arquitectura GAN inspirada en HiFi-GAN y AERO, mediante discriminadores MPD y MSD.
 *   **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas L1, MR-STFT y GAN.

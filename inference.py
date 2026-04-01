@@ -42,7 +42,15 @@ def save_audio(tensor, path, sample_rate):
 
 
 def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
-    """Convierte una forma de onda a un STFT con canales real e imaginario."""
+    """
+    Convierte una forma de onda a un STFT con canales real e imaginario.
+    Args:
+        waveform (torch.Tensor): Tensor de audio de entrada.
+        n_fft (int): Tamaño de la FFT.
+        hop_length (int): Salto entre ventanas STFT.
+    Returns:
+        torch.Tensor: Tensor STFT con shape (2, F, T).
+    """
     original_device = waveform.device
     waveform_cpu = waveform.cpu()
     if waveform_cpu.ndim == 2:
@@ -61,7 +69,16 @@ def waveform_to_stft(waveform, n_fft=N_FFT, hop_length=HOP_LENGTH):
     return torch.stack([stft.real, stft.imag], dim=0).to(original_device)
 
 def stft_to_waveform(stft, n_fft=N_FFT, hop_length=HOP_LENGTH, length=None):
-    """Convierte un STFT con canales real e imaginario de vuelta a forma de onda usando ISTFT."""
+    """
+    Convierte un STFT con canales real e imaginario a forma de onda usando ISTFT.
+    Args:
+        stft (torch.Tensor): Tensor STFT con shape (2, F, T).
+        n_fft (int): Tamaño de la FFT.
+        hop_length (int): Salto entre ventanas STFT.
+        length (int | None): Longitud exacta de la waveform de salida.
+    Returns:
+        torch.Tensor: Waveform reconstruida con shape (1, T).
+    """
     stft_cpu = stft.cpu()
 
     stft_complex = torch.complex(stft_cpu[0], stft_cpu[1])
@@ -78,7 +95,13 @@ def stft_to_waveform(stft, n_fft=N_FFT, hop_length=HOP_LENGTH, length=None):
 
 
 def normalize_stft(stft):
-    """Log-compresión solo de la magnitud, preservando la fase."""
+    """
+    Aplica log-compresión a la magnitud de la STFT preservando la fase.
+    Args:
+        stft (torch.Tensor): Tensor STFT con shape (2, F, T).
+    Returns:
+        torch.Tensor: Tensor STFT comprimido con misma forma.
+    """
     real, imag = stft[0], stft[1]
     magnitude = torch.sqrt(real**2 + imag**2 + 1e-8)
     phase_cos = real / magnitude
@@ -87,7 +110,13 @@ def normalize_stft(stft):
     return torch.stack([mag_compressed * phase_cos, mag_compressed * phase_sin], dim=0)
 
 def denormalize_stft(stft):
-    """Inversa de log-compresión."""
+    """
+    Aplica la inversa de la log-compresión de la STFT.
+    Args:
+        stft (torch.Tensor): Tensor STFT comprimido con shape (2, F, T).
+    Returns:
+        torch.Tensor: Tensor STFT en escala lineal con misma forma.
+    """
     real, imag = stft[0], stft[1]
     mag_compressed = torch.sqrt(real**2 + imag**2 + 1e-8)
     phase_cos = real / mag_compressed
@@ -97,7 +126,15 @@ def denormalize_stft(stft):
 
 
 def pad_stft(stft, pool_factor=POOL_FACTOR):
-    """Ajusta el STFT para que sea divisible por el factor de pooling."""
+    """
+    Ajusta el STFT para que sea divisible por pool_factor.
+    Args:
+        stft (torch.Tensor): Tensor STFT con shape (2, F, T).
+        pool_factor (int): Factor de pooling.
+    Returns:
+        tuple[torch.Tensor, int, int]: STFT con padding, número original
+            de bins de frecuencia y frames temporales.
+    """
     _, freq_bins, time_frames = stft.shape
     pad_f = (pool_factor - (freq_bins % pool_factor)) % pool_factor
     pad_t = (pool_factor - (time_frames % pool_factor)) % pool_factor
@@ -109,7 +146,14 @@ def pad_stft(stft, pool_factor=POOL_FACTOR):
 
 
 def save_waveform_plot(lr, sr, filename, sample_rate):
-    """Genera un gráfico de la forma de onda de entrada y salida."""
+    """
+    Genera y guarda un gráfico de la forma de onda de entrada y salida.
+    Args:
+        lr (torch.Tensor): Waveform de baja resolución.
+        sr (torch.Tensor): Waveform de super resolución.
+        filename (str): Ruta del archivo de salida.
+        sample_rate (int): Frecuencia de muestreo.
+    """
     wave_lr = lr.squeeze().cpu().numpy()
     wave_sr = sr.squeeze().cpu().numpy()
 
@@ -137,7 +181,16 @@ def save_waveform_plot(lr, sr, filename, sample_rate):
 
 
 def save_spectrogram_plot(lr_waveform, sr_waveform, filename, sample_rate, n_fft=N_FFT, hop_length=HOP_LENGTH):
-    """Genera un gráfico del espectrograma de entrada y salida."""
+    """
+    Genera y guarda un gráfico del espectrograma de entrada y salida.
+    Args:
+        lr_waveform (torch.Tensor): Waveform de baja resolución.
+        sr_waveform (torch.Tensor): Waveform de super resolución.
+        filename (str): Ruta del archivo de salida.
+        sample_rate (int): Frecuencia de muestreo.
+        n_fft (int): Tamaño de la FFT.
+        hop_length (int): Salto entre ventanas STFT.
+    """
     spec_transform = torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length, power=2)
 
     spec_lr = spec_transform(lr_waveform.cpu()).squeeze().numpy()
@@ -179,7 +232,15 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, sample_rate, n_fft
 def process_audio_in_chunks(model, stft, orig_f, orig_t, chunk_frames, overlap=32):
     """
     Procesa el STFT por chunks con overlap para evitar artefactos en los bordes.
-    chunk_frames debe ser compatible con pool_factor=16.
+    Args:
+        model (nn.Module): Modelo de super resolución.
+        stft (torch.Tensor): STFT de entrada con shape (2, F, T).
+        orig_f (int): Número original de bins de frecuencia (antes de padding).
+        orig_t (int): Número original de frames temporales (antes de padding).
+        chunk_frames (int): Tamaño de cada chunk en frames.
+        overlap (int): Número de frames de solapamiento entre chunks.
+    Returns:
+        torch.Tensor: STFT procesado con shape (2, F, T).
     """
     _, F, T = stft.shape
     hop = chunk_frames - overlap
@@ -226,7 +287,7 @@ def process_audio_in_chunks(model, stft, orig_f, orig_t, chunk_frames, overlap=3
 
 
 def inference():
-    """Realiza inferencia en los archivos de entrada y guardar los resultados."""
+    """Realiza inferencia en los archivos de entrada y guarda los resultados."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # Cargar modelo
