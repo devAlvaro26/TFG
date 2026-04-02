@@ -22,8 +22,9 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 ```
 .
 ├── data/
-│   ├── train/              # Dataset de entrenamiento (HR/LR)
-│   ├── test/               # Dataset de validación (HR/LR)
+│   ├── dataset/            # Dataset
+│   │   ├── train/          # Dataset de entrenamiento (HR/LR)
+│   │   └── test/           # Dataset de validación (HR/LR)
 │   └── inference/          # Archivos .wav para procesar con el modelo
 ├── results/                # Salida de la inferencia (audio + gráficos)
 ├── src/
