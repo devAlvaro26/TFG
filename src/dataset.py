@@ -25,7 +25,7 @@ class AudioSuperResDataset(Dataset):
             hr_dir (str): Directorio de los archivos en alta calidad (Ground Truth).
             lr_dir (str): Directorio de los archivos en baja calidad (Input).
             fragment_length (int): Longitud del fragmento a procesar en muestras.
-            n_fft (int): Tamaño de la FFT para el STFT.
+            n_fft (int): Tamaño de la FFT para la STFT.
             hop_length (int): Salto entre ventanas STFT.
         """
 
@@ -123,7 +123,7 @@ class AudioSuperResDataset(Dataset):
         )  #stft shape: (F, T)
 
         # Apilar parte real e imaginaria
-        stft_ri = torch.stack([stft.real, stft.imag], dim=0)
+        stft_ri = torch.stack([stft.real, stft.imag], dim=0) # (2, F, T)
         return stft_ri
 
     def _normalize_stft(self, stft_ri):

@@ -99,7 +99,7 @@ class MultiResolutionSTFTLoss(nn.Module):
 
 
 class CombinedLoss(nn.Module):
-    """Pérdida combinada L1 temporal y Multi-Resolución STFT frecuencial."""
+    """Pérdida combinada L1 temporal y Multi-Resolución STFT."""
     def __init__(self, n_fft=NFFT, hop_length=HOP_LENGTH, lambda_l1=1.0, lambda_mrstft=1.0):
         """
         Inicializa la pérdida combinada.
@@ -298,8 +298,7 @@ class DiscriminatorLoss(nn.Module):
         """
         Pérdida LSGAN del generador.
         Args:
-            disc_generated_outputs (list[torch.Tensor]): Salida del discriminador
-                para inputs generados.
+            disc_generated_outputs (list[torch.Tensor]): Salida del discriminador para inputs generados.
         Returns:
             torch.Tensor: Valor de la pérdida adversarial del generador.
         """

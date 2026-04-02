@@ -16,8 +16,7 @@ class AttentionGate(nn.Module):
         """
         super().__init__()
 
-        # Basado en el paper "https://arxiv.org/abs/1804.03999"
-        # https://github.com/ozan-oktay/Attention-Gated-Networks
+        # Uso de Attention Gates basado en el paper "https://arxiv.org/abs/1804.03999"
         self.W_g = nn.Conv2d(F_g, F_int, kernel_size=1)
         self.W_x = nn.Conv2d(F_l, F_int, kernel_size=1)
         self.psi = nn.Conv2d(F_int, 1, kernel_size=1)
@@ -30,7 +29,6 @@ class AttentionGate(nn.Module):
             g = F.interpolate(g, size=x.shape[-2:], mode="bilinear", align_corners=False)
         # Calcular atención
         att = self.sigmoid(self.psi(self.relu(self.W_g(g) + self.W_x(x))))
-
         return x * att
 
 
@@ -165,19 +163,6 @@ class UNetAudio2D(nn.Module):
             nn.LeakyReLU(0.2, inplace=True)
         )
 
-    def match_size(self, x, ref):
-        """
-        Asegura que x tenga el mismo tamaño espacial que ref.
-        Args:
-            x (torch.Tensor): Tensor a redimensionar.
-            ref (torch.Tensor): Tensor de referencia para el tamaño.
-        Returns:
-            torch.Tensor: Tensor x interpolado al tamaño de ref.
-        """
-        if x.shape[-2:] != ref.shape[-2:]:
-            x = F.interpolate(x, size=ref.shape[-2:], mode="bilinear", align_corners=False)
-        return x
-
     def forward(self, x):
         # Encoder
         e1 = self.enc1(x)
@@ -190,16 +175,16 @@ class UNetAudio2D(nn.Module):
         b = self.bottleneck_dilated(b)
 
         # Decoder con skip connections y attention gates
-        up4 = self.match_size(self.up4(b), e4)
+        up4 = self.up4(b)
         d4 = self.dec4(torch.cat([up4, self.att4(up4, e4)], dim=1))
 
-        up3 = self.match_size(self.up3(d4), e3)
+        up3 = self.up3(d4)
         d3 = self.dec3(torch.cat([up3, self.att3(up3, e3)], dim=1))
 
-        up2 = self.match_size(self.up2(d3), e2)
+        up2 = self.up2(d3)
         d2 = self.dec2(torch.cat([up2, self.att2(up2, e2)], dim=1))
 
-        up1 = self.match_size(self.up1(d2), e1)
+        up1 = self.up1(d2)
         d1 = self.dec1(torch.cat([up1, self.att1(up1, e1)], dim=1))
 
         return self.final(d1) + x

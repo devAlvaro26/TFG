@@ -134,10 +134,9 @@ class MultiScaleDiscriminator(torch.nn.Module):
 
 class CombinedDiscriminator(nn.Module):
     """
-    Discriminador que combina MSD y MPD
+    Módulo del discriminador que combina MSD y MPD.
     """
     def __init__(self):
-
         super().__init__()
         
         self.msd = MultiScaleDiscriminator()
