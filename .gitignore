@@ -1,11 +1,11 @@
 src/__pycache__/
-src/*.pyc
 
 .github/
 data/dataset/
 temp/
 runs/
 
+*.pyc
 *.pt
 *.pth
 *.zip

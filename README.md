@@ -25,7 +25,8 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 │   ├── dataset/            # Dataset
 │   │   ├── train/          # Dataset de entrenamiento (HR/LR)
 │   │   └── test/           # Dataset de validación (HR/LR)
-│   └── inference/          # Archivos .wav para procesar con el modelo
+│   ├── inference/          # Archivos .wav para procesar con el modelo
+│   └── create_dataset.py   # Script para crear el dataset
 ├── results/                # Salida de la inferencia (audio + gráficos)
 ├── src/
 │   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a pares STFT
@@ -59,6 +60,11 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 
     ```bash
     pip install torch-directml==0.2.5.dev240914
+    ```
+4. Opcional: Crear el dataset:
+
+    ```bash
+    python data/create_dataset.py
     ```
 
 ## Uso
@@ -123,10 +129,11 @@ Los cuadernos jupyter son versiones adaptadas para computación en gpu directame
 *   torchaudio 2.4.1
 *   torchvision 0.19.1
 *   torchmetrics 1.9.0
-*   tensorboard 2.20.0
 *   setuptools 74.0.0
+*   soundfile 0.13.1
+*   tensorboard 2.20.0
 *   pystoi
 *   numpy
-*   matplotlib
-*   soundfile
 *   scipy
+*   gdown
+*   matplotlib
