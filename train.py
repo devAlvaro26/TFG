@@ -2,6 +2,7 @@
 # Este script guardara el mejor modelo en un archivo .pt
 
 import os
+import argparse
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -15,26 +16,48 @@ TRAIN_HR_DIR = './data/dataset/train/HR'    # Archivos de alta resolución (grou
 TRAIN_LR_DIR = './data/dataset/train/LR'    # Archivos de baja resolución (input)
 VAL_HR_DIR = './data/dataset/test/HR'       # Archivos de alta resolución para validación
 VAL_LR_DIR = './data/dataset/test/LR'       # Archivos de baja resolución para validación
+BATCH_SIZE = 4                              # Tamaño de lote
+EPOCHS = 500                                # Épocas
+LEARNING_RATE_G = 2e-4                      # LR del generador
+LEARNING_RATE_D = 1e-4                      # LR del discriminador
 
-BATCH_SIZE = 4                      # Tamaño de lote
-EPOCHS = 500                        # Épocas
-LEARNING_RATE_G = 2e-4              # LR del generador
-LEARNING_RATE_D = 1e-4              # LR del discriminador
+def get_device(force_device=None):
+    """Elige el dispositivo donde se ejecutará el entrenamiento."""
+    if force_device:
+        return force_device
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            return torch_directml.device()
+    except:
+        if torch.cuda.is_available():
+            return 'cuda'
+        return 'cpu'
 
-try:
-    import torch_directml
-    has_dml = torch_directml.is_available()
-except ImportError:
-    has_dml = False
+def parse_args():
+    """Define y parsea los argumentos de línea de comandos."""
+    parser = argparse.ArgumentParser(description='Entrenamiento de super-resolución de audio con UNet 2D + GAN',
+                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # Directorios de datos
+    parser.add_argument('--train-hr', type=str, default=TRAIN_HR_DIR, help='Directorio de audio HR de entrenamiento (ground truth)')
+    parser.add_argument('--train-lr', type=str, default=TRAIN_LR_DIR, help='Directorio de audio LR de entrenamiento (input)')
+    parser.add_argument('--val-hr', type=str, default=VAL_HR_DIR, help='Directorio de audio HR de validación')
+    parser.add_argument('--val-lr', type=str, default=VAL_LR_DIR, help='Directorio de audio LR de validación')
+    # Hiperparámetros
+    parser.add_argument('--batch-size', type=int, default=BATCH_SIZE, help='Tamaño de lote')
+    parser.add_argument('--epochs', type=int, default=EPOCHS, help='Número de épocas de entrenamiento')
+    parser.add_argument('--lr-g', type=float, default=LEARNING_RATE_G, help='Learning rate del generador')
+    parser.add_argument('--lr-d', type=float, default=LEARNING_RATE_D, help='Learning rate del discriminador')
+    parser.add_argument('--patience', type=int, default=50, help='Épocas sin mejora antes de early stopping')
+    # Dispositivo
+    parser.add_argument('--device', type=str, default=None, choices=['cpu', 'cuda', 'directml'], help='Dispositivo de ejecución (auto-detecta si no se especifica)')
+    # Salida
+    parser.add_argument('--log-dir', type=str, default='./runs', help='Directorio de logs de TensorBoard')
+    parser.add_argument('--save-path', type=str, default='unet2D_superres.pt', help='Ruta para guardar el modelo (último checkpoint)')
+    parser.add_argument('--save-best', type=str, default='unet2D_superres_best.pt', help='Ruta para guardar el mejor modelo')
+    return parser.parse_args()
 
-if has_dml:
-    DEVICE = torch_directml.device()
-elif torch.cuda.is_available():
-    DEVICE = 'cuda'
-else:
-    DEVICE = 'cpu'
-
-def evaluate(model_g, dataloader, criterion):
+def evaluate(model_g, dataloader, criterion, device):
     """Evalúa el modelo en el conjunto de validación y devuelve la pérdida promedio, SI-SDR, STOI y LSD."""
     model_g.eval()
     total_loss = 0.0
@@ -44,7 +67,7 @@ def evaluate(model_g, dataloader, criterion):
     with torch.no_grad():
         # Validar el modelo sin gradientes
         for inputs, targets in dataloader:
-            inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
+            inputs, targets = inputs.to(device), targets.to(device)
             outputs = model_g(inputs)   # Predicción del modelo
             loss = criterion(outputs, targets)  # Pérdida del modelo
             total_loss += loss.item()
@@ -54,10 +77,12 @@ def evaluate(model_g, dataloader, criterion):
             total_lsd += LossMetrics.lsd_loss(pred_wav, target_wav) # LSD
     return total_loss / len(dataloader), total_sisdr / len(dataloader), total_stoi / len(dataloader), total_lsd / len(dataloader)
 
-def train():
+def train(args):
     """Entrenar el modelo"""
+    device = get_device(args.device)
+
     # Verificar que los directorios existen
-    dirs_to_check = [TRAIN_HR_DIR, TRAIN_LR_DIR, VAL_HR_DIR, VAL_LR_DIR]
+    dirs_to_check = [args.train_hr, args.train_lr, args.val_hr, args.val_lr]
     for d in dirs_to_check:
         if not os.path.exists(d):
             print(f"Error: directorio no encontrado: {d}")
@@ -65,8 +90,8 @@ def train():
             return
 
     # Cargar datasets
-    train_dataset = AudioSuperResDataset(TRAIN_HR_DIR, TRAIN_LR_DIR)
-    val_dataset = AudioSuperResDataset(VAL_HR_DIR, VAL_LR_DIR)
+    train_dataset = AudioSuperResDataset(args.train_hr, args.train_lr)
+    val_dataset = AudioSuperResDataset(args.val_hr, args.val_lr)
 
     if len(train_dataset) == 0 or len(val_dataset) == 0:
         print("Error: El dataset está vacío")
@@ -76,38 +101,38 @@ def train():
     # len(dataset) -> número de fragmentos del conjunto
     # Shape: (2, F, T) -> 2=componentes real/imag, F=frecuencia, T=tiempo
     print(f"Cargados {len(train_dataset)} elementos de entrenamiento con shapes de entrada y salida: {train_dataset[0][0].shape} y {train_dataset[0][1].shape}")
-    train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=num_workers, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
     print(f"Cargados {len(val_dataset)} elementos de validación con shapes de entrada y salida: {val_dataset[0][0].shape} y {val_dataset[0][1].shape}")
-    val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=num_workers, pin_memory=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     # Inicializar Modelos
-    model_g = UNetAudio2D().to(DEVICE)
-    model_d = CombinedDiscriminator().to(DEVICE)
+    model_g = UNetAudio2D().to(device)
+    model_d = CombinedDiscriminator().to(device)
 
     # Inicializar Pérdidas
-    criterion_g = CombinedLoss(lambda_l1=1.0, lambda_mrstft=1.0).to(DEVICE)
-    criterion_d = DiscriminatorLoss(lambda_adv=1.0, lambda_fm=2.0, lambda_mel=45.0).to(DEVICE)
+    criterion_g = CombinedLoss(lambda_l1=1.0, lambda_mrstft=1.0).to(device)
+    criterion_d = DiscriminatorLoss(lambda_adv=1.0, lambda_fm=2.0, lambda_mel=45.0).to(device)
 
     # Inicializar Optimizadores
-    optimizer_g = optim.AdamW(model_g.parameters(), lr=LEARNING_RATE_G, betas=(0.8, 0.99))
-    optimizer_d = optim.AdamW(model_d.parameters(), lr=LEARNING_RATE_D, betas=(0.8, 0.99))
+    optimizer_g = optim.AdamW(model_g.parameters(), lr=args.lr_g, betas=(0.8, 0.99))
+    optimizer_d = optim.AdamW(model_d.parameters(), lr=args.lr_d, betas=(0.8, 0.99))
 
     # Schedulers
     scheduler_g = optim.lr_scheduler.ReduceLROnPlateau(optimizer_g, mode='min', factor=0.5, patience=10)
     scheduler_d = optim.lr_scheduler.ReduceLROnPlateau(optimizer_d, mode='min', factor=0.5, patience=10)
 
     # Inicializar TensorBoard
-    writer = SummaryWriter(log_dir='./runs')
+    writer = SummaryWriter(log_dir=args.log_dir)
 
-    print(f"Iniciando entrenamiento en {DEVICE}...")
+    print(f"Iniciando entrenamiento en {device}...")
 
     # Early stopping
     best_val_loss = float('inf')
-    patience_earlystop = 50
+    patience_earlystop = args.patience
     epochs_no_improve = 0
 
     # Bucle de entrenamiento
-    for epoch in range(EPOCHS):
+    for epoch in range(args.epochs):
         # Entrenar modelos
         model_g.train()
         model_d.train()
@@ -116,8 +141,8 @@ def train():
         running_loss_d = 0.0
 
         for i, (inputs, targets) in enumerate(train_dataloader):
-            inputs = inputs.to(DEVICE)
-            targets = targets.to(DEVICE)
+            inputs = inputs.to(device)
+            targets = targets.to(device)
             
             # Entrenar generador
             pred = model_g(inputs)
@@ -168,9 +193,9 @@ def train():
         train_loss_d = running_loss_d / len(train_dataloader)
 
         # Evaluar generador en el conjunto de validación
-        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(model_g, val_dataloader, criterion_g)
+        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(model_g, val_dataloader, criterion_g, device)
 
-        print(f"Epoch [{epoch+1}/{EPOCHS}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
+        print(f"Epoch [{epoch+1}/{args.epochs}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
         print(f"Métricas de calidad: SI-SDR: {val_sisdr:.6f} | STOI: {val_stoi:.6f} | LSD: {val_lsd:.6f}")
 
         # Registrar métricas en TensorBoard
@@ -190,7 +215,7 @@ def train():
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             epochs_no_improve = 0
-            torch.save(model_g.state_dict(), 'unet2D_superres_best.pt')
+            torch.save(model_g.state_dict(), args.save_best)
             print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
         else:
             epochs_no_improve += 1
@@ -198,7 +223,7 @@ def train():
                 print(f"Early stopping en epoch {epoch+1}")
                 break
         
-        torch.save(model_g.state_dict(), 'unet2D_superres.pt')
+        torch.save(model_g.state_dict(), args.save_path)
 
     writer.close()
     print("Entrenamiento completado")
@@ -206,4 +231,5 @@ def train():
 
 
 if __name__ == "__main__":
-    train()
+    args = parse_args()
+    train(args)

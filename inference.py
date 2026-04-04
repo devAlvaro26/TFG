@@ -2,6 +2,7 @@
 # Este script cargará el modelo entrenado y generará resultados
 
 import os
+import argparse
 import torch
 import torchaudio
 import numpy as np
@@ -12,25 +13,42 @@ from src.model import UNetAudio2D
 MODEL_PATH = 'unet2D_superres.pt'   # Archivo del modelo entrenado
 INF_DIR = './data/inference'        # Archivos de entrada
 OUTPUT_DIR = './results'            # Archivos de salida
-
 TARGET_SR = 44100                   # Target sample rate
 POOL_FACTOR = 16                    # 2^4 para 4 capas de pooling en UNet 2D
 N_FFT = 1024                        # Tamaño de la FFT para STFT
 HOP_LENGTH = 256                    # Salto entre ventanas STFT
 FRAGMENT_LENGTH = 65536             # Longitud de los fragmentos en muestras
 
-try:
-    import torch_directml
-    has_dml = torch_directml.is_available()
-except ImportError:
-    has_dml = False
+def get_device(force_device=None):
+    """Elige el dispositivo donde se ejecutará el entrenamiento."""
+    if force_device:
+        return force_device
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            return torch_directml.device()
+    except:
+        if torch.cuda.is_available():
+            return 'cuda'
+        return 'cpu'
 
-if has_dml:
-    DEVICE = torch_directml.device()
-elif torch.cuda.is_available():
-    DEVICE = 'cuda'
-else:
-    DEVICE = 'cpu'
+def parse_args():
+    """Define y parsea los argumentos de línea de comandos."""
+    parser = argparse.ArgumentParser(description='Inferencia de super-resolución de audio con UNet 2D',
+                                    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # Directorios
+    parser.add_argument('--model', type=str, default=MODEL_PATH, help='Ruta al archivo del modelo entrenado (.pt)')
+    parser.add_argument('--input', type=str, default=INF_DIR, help='Directorio con los archivos de audio de entrada para inferencia')
+    parser.add_argument('--output', type=str, default=OUTPUT_DIR, help='Directorio donde se guardarán los resultados')
+    # Hiperparámetros
+    parser.add_argument('--sample-rate', type=int, default=TARGET_SR, help='Frecuencia de muestreo objetivo (Hz)')
+    parser.add_argument('--n-fft', type=int, default=N_FFT, help='Tamaño de la FFT para la STFT')
+    parser.add_argument('--hop-length', type=int, default=HOP_LENGTH, help='Salto entre ventanas STFT')
+    parser.add_argument('--fragment-length', type=int, default=FRAGMENT_LENGTH, help='Longitud de los fragmentos en muestras')
+    parser.add_argument('--device', type=str, default=None, choices=['cpu', 'cuda', 'directml'], help='Dispositivo de ejecución (auto-detecta si no se especifica)')
+    parser.add_argument('--pool-factor', type=int, default=POOL_FACTOR, help='Factor de pooling (2^n capas de pooling)')
+    return parser.parse_args()
+
 
 def save_audio(tensor, path, sample_rate):
     """Guarda una forma de onda en un archivo de audio."""
@@ -286,24 +304,30 @@ def process_audio_in_chunks(model, stft, orig_f, orig_t, chunk_frames, overlap=3
     return output
 
 
-def inference():
+def inference(args):
     """Realiza inferencia en los archivos de entrada y guarda los resultados."""
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    device = get_device(args.device)
+    n_fft = args.n_fft
+    hop_length = args.hop_length
+    target_sr = args.sample_rate
+    pool_factor = args.pool_factor
+    fragment_length = args.fragment_length
+    os.makedirs(args.output, exist_ok=True)
 
     # Cargar modelo
-    print(f"Cargando modelo desde {MODEL_PATH}...")
-    model = UNetAudio2D().to(DEVICE)
+    print(f"Cargando modelo desde {args.model}...")
+    model = UNetAudio2D().to(device)
     try:
-        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)) # weights_only=False para compatibilidad con AMD
+        model.load_state_dict(torch.load(args.model, map_location=device, weights_only=False))
     except FileNotFoundError:
-        print(f"Error: No se encontró el archivo del modelo '{MODEL_PATH}'.")
+        print(f"Error: No se encontró el archivo del modelo '{args.model}'.")
         return
     model.eval()
 
     # Procesar archivos de inferencia
-    files = [f for f in os.listdir(INF_DIR) if f.endswith('.wav')]
+    files = [f for f in os.listdir(args.input) if f.endswith('.wav')]
     if not files:
-        print(f"No se encontraron archivos .wav en {INF_DIR}")
+        print(f"No se encontraron archivos .wav en {args.input}")
         return
 
     print(f"Encontrados {len(files)} archivos para procesar.")
@@ -311,15 +335,15 @@ def inference():
     resamplers = {}
 
     for filename in files:
-        file_path = os.path.join(INF_DIR, filename)
+        file_path = os.path.join(args.input, filename)
         print(f"Procesando: {filename}")
 
         waveform, original_sr = torchaudio.load(file_path)
 
-        # Resampleo a TARGET_SR si es necesario
-        if original_sr != TARGET_SR:
+        # Resampleo a target_sr si es necesario
+        if original_sr != target_sr:
             if original_sr not in resamplers:
-                resamplers[original_sr] = torchaudio.transforms.Resample(original_sr, TARGET_SR)
+                resamplers[original_sr] = torchaudio.transforms.Resample(original_sr, target_sr)
             waveform = resamplers[original_sr](waveform)
 
         # Pasar a mono
@@ -334,11 +358,11 @@ def inference():
         input_for_plot = waveform_norm.clone()
 
         # Preparación STFT
-        stft_input = waveform_to_stft(waveform_norm.to(DEVICE))
+        stft_input = waveform_to_stft(waveform_norm.to(device), n_fft=n_fft, hop_length=hop_length)
         stft_input = normalize_stft(stft_input)  # Log-compresión (igual que en dataset)
-        stft_padded, orig_f, orig_t = pad_stft(stft_input)
+        stft_padded, orig_f, orig_t = pad_stft(stft_input, pool_factor=pool_factor)
 
-        chunk_frames = FRAGMENT_LENGTH // HOP_LENGTH  # frames equivalentes a FRAGMENT_LENGTH muestras
+        chunk_frames = fragment_length // hop_length    # frames equivalentes a FRAGMENT_LENGTH muestras
 
         predicted_stft = process_audio_in_chunks(model, stft_padded, orig_f, orig_t, chunk_frames=chunk_frames)
         predicted_stft = predicted_stft[:, :orig_f, :orig_t]
@@ -346,46 +370,49 @@ def inference():
         predicted_stft = denormalize_stft(predicted_stft)  # Inversa de log-compresión
 
         # ISTFT con longitud exacta para evitar artefactos de corte
-        predicted_waveform = stft_to_waveform(predicted_stft, length=original_length)  # (1, T)
+        predicted_waveform = stft_to_waveform(predicted_stft, n_fft=n_fft, hop_length=hop_length, length=original_length)   # (1, T)
 
-        # Prevención de valores NaN o infinitos que puedan surgir por la red o la ISTFT
+        # Prevención de valores NaN o infinitos
         predicted_waveform = torch.nan_to_num(predicted_waveform, nan=0.0, posinf=1.0, neginf=-1.0)
         predicted_waveform = torch.clamp(predicted_waveform, -1.0, 1.0)
 
         base_name = os.path.splitext(filename)[0]
-        save_path = os.path.join(OUTPUT_DIR, base_name)
+        save_path = os.path.join(args.output, base_name)
         os.makedirs(save_path, exist_ok=True)
 
         # Guardar resultados
         copy2(file_path, os.path.join(save_path, 'input.wav'))
-        save_audio(predicted_waveform, os.path.join(save_path, 'super_res.wav'), TARGET_SR)
+        save_audio(predicted_waveform, os.path.join(save_path, 'super_res.wav'), target_sr)
 
         # Guardar gráficos de forma de onda y espectrograma
         save_waveform_plot(
             input_for_plot,
             predicted_waveform,
             os.path.join(save_path, 'waveform.png'),
-            TARGET_SR,
+            target_sr
         )
 
         save_spectrogram_plot(
             input_for_plot,
             predicted_waveform,
             os.path.join(save_path, 'spectrogram.png'),
-            sample_rate=TARGET_SR,
+            sample_rate=target_sr,
+            n_fft=n_fft,
+            hop_length=hop_length
         )
 
         print(f"Guardado en {save_path.replace(os.sep, '/')}/")
 
-    print(f"Listo. Revisa la carpeta '{OUTPUT_DIR.replace(os.sep, '/')}'.")
+    print(f"Listo. Revisa la carpeta '{args.output.replace(os.sep, '/')}'.")
 
 
 if __name__ == "__main__":
+    args = parse_args()
     try:
-        inference()
+        inference(args)
     except KeyboardInterrupt:
         exit()
     except Exception as e:
-        DEVICE = 'cpu'
+        args.device = 'cpu'
         print(f"Error durante la inferencia. Intentando en CPU...\n{e}")
-        inference()
+        inference(args)
