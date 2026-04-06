@@ -4,11 +4,11 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 
 ## Características
 
-*   **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar el canal real e imaginario, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
-*   **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
-*   **Arquitectura GAN**: El proyecto utiliza una arquitectura GAN inspirada en HiFi-GAN y AERO, mediante discriminadores MPD y MSD.
-*   **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas L1, MR-STFT y GAN.
-*   **Inferencia y Visualización**:
+* **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar el canal real e imaginario, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
+* **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
+* **Arquitectura GAN**: El proyecto utiliza una arquitectura GAN inspirada en HiFi-GAN y AERO, mediante discriminadores MPD y MSD.
+* **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas L1, MR-STFT y GAN.
+* **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
     - Produce gráficos comparativos de espectrograma para visualizar la reconstrucción de frecuencias.
@@ -44,14 +44,18 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 └── unet2D_superres.pt      # Checkpoint del modelo guardado
 ```
 
-## Modelos entrenados
+## Modelos pre-entrenados
 
-*   [Repositorio modelo pre-entrenado](https://drive.google.com/file/d/1JBPaXIf8UnDen97v6bCirutgyeG8p7xl/view?usp=sharing)
+Se puede descargar un modelo ya entrenado y una página donde realizar pruebas de inferencia en los siguientes enlaces:
+
+* **[Descargar modelo pre-entrenado](https://huggingface.co/devAlvaro26/Unet2D_SuperRes/resolve/main/unet2D_superres.pt)**
+
+* **[Probar inferencia](https://huggingface.co/spaces/devAlvaro26/AudioSuperRes)**
 
 ## Instalación
 
-1.  Clonar el repositorio.
-2.  Instalar las dependencias requeridas:
+1. Clonar el repositorio.
+2. Instalar las dependencias requeridas:
 
     ```bash
     pip install -r requirements.txt
@@ -73,11 +77,11 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 
 Para entrenar el modelo, es necesario un dataset de pares de archivos de audio de Alta Resolución (HR) y Baja Resolución (LR).
 
-1.  Colocar los archivos wav de **Alta Resolución** en `./data/train/HR/`.
-2.  Colocar los archivos wav correspondientes de **Baja Resolución** en `./data/train/LR/`.
-    *   *Nota: Los nombres de archivo deben coincidir exactamente entre las carpetas HR y LR.*
+1. Colocar los archivos wav de **Alta Resolución** en `./data/train/HR/`.
+2. Colocar los archivos wav correspondientes de **Baja Resolución** en `./data/train/LR/`.
+    * Nota: Los nombres de archivo deben coincidir exactamente entre las carpetas HR y LR.
 3. Colocar los archivos de validación en `./data/test/HR/` y `./data/test/LR/` de igual forma.
-4.  Ejecutar el script de entrenamiento:
+4. Ejecutar el script de entrenamiento:
 
     ```bash
     python train.py
@@ -95,18 +99,18 @@ tensorboard --logdir=./runs
 
 Para probar el modelo en nuevos archivos de audio:
 
-1.  Colocar los archivos de entrada `.wav` en `./data/inference/`.
-2.  Ejecutar el script de inferencia:
+1. Colocar los archivos de entrada `.wav` en `./data/inference/`.
+2. Ejecutar el script de inferencia:
 
     ```bash
     python inference.py
     ```
 
-3.  Los resultados se guardarán en la carpeta `./results/`. Para cada archivo de entrada, se creará una subcarpeta que contiene:
-    *   `input.wav`: La entrada original de baja resolución.
-    *   `super_res.wav`: La salida super-resuelta del modelo.
-    *   `waveform.png`: Una comparación visual de las formas de onda.
-    *   `spectrogram.png`: Una comparación visual de los espectrogramas.
+3. Los resultados se guardarán en la carpeta `./results/`. Para cada archivo de entrada, se creará una subcarpeta que contiene:
+    * `input.wav`: La entrada original de baja resolución.
+    * `super_res.wav`: La salida super-resuelta del modelo.
+    * `waveform.png`: Una comparación visual de las formas de onda.
+    * `spectrogram.png`: Una comparación visual de los espectrogramas.
 
 ### Uso Jupyter
 
@@ -116,10 +120,10 @@ Los cuadernos jupyter son versiones adaptadas para computación en gpu directame
 
 ## Papers y proyectos de referencia
 
-*   [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([GitHub](https://github.com/kuleshov/audio-super-res))
-*   [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([GitHub](https://github.com/slp-rl/aero))
-*   [HiFi-GAN: Generative Adversarial Networks for Efficient and High Fidelity Speech Synthesis](https://arxiv.org/abs/2010.05646) ([GitHub](https://github.com/jik876/hifi-gan))
-*   [Versatile_Audio_Super_Resolution](https://github.com/haoheliu/versatile_audio_super_resolution)
+* [Audio Super Resolution using Neural Networks](https://arxiv.org/abs/1708.00853) ([GitHub](https://github.com/kuleshov/audio-super-res))
+* [AERO: Audio Super Resolution in the Spectral Domain](https://arxiv.org/abs/2211.12232) ([GitHub](https://github.com/slp-rl/aero))
+* [HiFi-GAN: Generative Adversarial Networks for Efficient and High Fidelity Speech Synthesis](https://arxiv.org/abs/2010.05646) ([GitHub](https://github.com/jik876/hifi-gan))
+* [Versatile_Audio_Super_Resolution](https://github.com/haoheliu/versatile_audio_super_resolution)
 
 
 ## Desarrollado con los siguientes paquetes

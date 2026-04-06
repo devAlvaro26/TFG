@@ -4,6 +4,7 @@ src/__pycache__/
 data/dataset/
 temp/
 runs/
+HF/
 
 *.pyc
 *.pt
