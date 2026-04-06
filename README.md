@@ -2,6 +2,8 @@
 
 Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a una frecuencia de muestreo de 44.1kHz.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/devAlvaro26/TFG)
+
 ## Características
 
 * **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar el canal real e imaginario, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
