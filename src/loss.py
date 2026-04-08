@@ -15,7 +15,7 @@ NFFT = 1024
 HOP_LENGTH = 256
 WIN_LENGTH = 1024
 SAMPLE_RATE = 44100
-FRAGMENT_LENGTH = 65536
+FRAGMENT_LENGTH = 65280
 
 class STFTLoss(nn.Module):
     """Pérdida de Magnitud Logarítmica y Convergencia Espectral (STFT)."""

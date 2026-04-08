@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 NFFT = 1024
 HOP_LENGTH = 256
 SAMPLE_RATE = 44100
-FRAGMENT_LENGTH = 65536
+FRAGMENT_LENGTH = 65280
 
 class AudioSuperResDataset(Dataset):
     """
@@ -52,54 +52,34 @@ class AudioSuperResDataset(Dataset):
 
         # Cargar ficheros y dividir en fragmentos
         self.fragments = []  # lista (hr_fragment, lr_fragment)
+
         for filename in files:
             hr_path = os.path.join(hr_dir, filename)
             lr_path = os.path.join(lr_dir, filename)
 
-            # Cargar audio
-            waveform_hr, sr_hr = torchaudio.load(hr_path)
-            waveform_lr, sr_lr = torchaudio.load(lr_path)
+            # Extraer metadatos
+            info_hr = torchaudio.info(hr_path)
+            info_lr = torchaudio.info(lr_path)
 
-            # Uniformizar a mono
-            if waveform_hr.size(0) > 1:
-                waveform_hr = waveform_hr.mean(dim=0, keepdim=True)
-            if waveform_lr.size(0) > 1:
-                waveform_lr = waveform_lr.mean(dim=0, keepdim=True)
+            sr_hr = info_hr.sample_rate
+            sr_lr = info_lr.sample_rate
 
-            # Resamplear a 44.1 kHz
-            if sr_hr != SAMPLE_RATE:
-                key = ('hr', sr_hr)
-                if key not in self._resamplers:
-                    self._resamplers[key] = torchaudio.transforms.Resample(sr_hr, SAMPLE_RATE)
-                waveform_hr = self._resamplers[key](waveform_hr)
+            # Calcular número de muestras originales correspondientes a FRAGMENT_LENGTH
+            frag_len_hr_orig = int(self.fragment_length * (sr_hr / SAMPLE_RATE))
+            frag_len_lr_orig = int(self.fragment_length * (sr_lr / SAMPLE_RATE))
 
-            if sr_lr != SAMPLE_RATE:
-                key = ('lr', sr_lr)
-                if key not in self._resamplers:
-                    self._resamplers[key] = torchaudio.transforms.Resample(sr_lr, SAMPLE_RATE)
-                waveform_lr = self._resamplers[key](waveform_lr)
-
-            # Normalizar a [-1, 1]
-            max_val = max(waveform_hr.abs().max(), waveform_lr.abs().max()) + 1e-8
-            waveform_hr = waveform_hr / max_val
-            waveform_lr = waveform_lr / max_val
-
-            # Calcular número de fragmentos
-            min_len = min(waveform_hr.size(1), waveform_lr.size(1))
-            num_fragments = min_len // self.fragment_length
+            num_fragments = min(info_hr.num_frames // frag_len_hr_orig, info_lr.num_frames // frag_len_lr_orig)
 
             for i in range(num_fragments):
-                # Obtener fragmentos
-                start = i * self.fragment_length
-                end = start + self.fragment_length
-                frag_hr = waveform_hr[:, start:end]
-                frag_lr = waveform_lr[:, start:end]
-
-                # Descartar fragmentos de silencio
-                if frag_hr.abs().max() < 1e-4:
-                    continue
-
-                self.fragments.append((frag_hr, frag_lr))
+                self.fragments.append({
+                    'filename': filename,
+                    'start_hr': i * frag_len_hr_orig,
+                    'start_lr': i * frag_len_lr_orig,
+                    'frames_hr': frag_len_hr_orig,
+                    'frames_lr': frag_len_lr_orig,
+                    'sr_hr': sr_hr,
+                    'sr_lr': sr_lr
+                })
 
     def __len__(self):
         """Devuelve el número de fragmentos del conjunto."""
@@ -167,9 +147,49 @@ class AudioSuperResDataset(Dataset):
         return stft
 
     def __getitem__(self, idx):
-        frag_hr, frag_lr = self.fragments[idx]
+        # Cargar fragmento
+        frag_info = self.fragments[idx]
+        hr_path = os.path.join(self.hr_dir, frag_info['filename'])
+        lr_path = os.path.join(self.lr_dir, frag_info['filename'])
 
-        # Calcular STFT de ambas waveforms
+        # Leer solo el trozo necesario
+        frag_hr, _ = torchaudio.load(hr_path, frame_offset=frag_info['start_hr'], num_frames=frag_info['frames_hr'])
+        frag_lr, _ = torchaudio.load(lr_path, frame_offset=frag_info['start_lr'], num_frames=frag_info['frames_lr'])
+
+        # Uniformizar a mono
+        if frag_hr.size(0) > 1:
+            frag_hr = frag_hr.mean(dim=0, keepdim=True)
+        if frag_lr.size(0) > 1:
+            frag_lr = frag_lr.mean(dim=0, keepdim=True)
+
+        # Resamplear a 44.1 kHz si es necesario
+        if frag_info['sr_hr'] != SAMPLE_RATE:
+            key = ('hr', frag_info['sr_hr'])
+            if key not in self._resamplers:
+                self._resamplers[key] = torchaudio.transforms.Resample(frag_info['sr_hr'], SAMPLE_RATE)
+            frag_hr = self._resamplers[key](frag_hr)
+
+        if frag_info['sr_lr'] != SAMPLE_RATE:
+            key = ('lr', frag_info['sr_lr'])
+            if key not in self._resamplers:
+                self._resamplers[key] = torchaudio.transforms.Resample(frag_info['sr_lr'], SAMPLE_RATE)
+            frag_lr = self._resamplers[key](frag_lr)
+
+        # Forzar longitud exacta
+        if frag_hr.size(1) != self.fragment_length:
+            frag_hr = F.pad(frag_hr, (0, max(0, self.fragment_length - frag_hr.size(1))))[:, :self.fragment_length]
+        if frag_lr.size(1) != self.fragment_length:
+            frag_lr = F.pad(frag_lr, (0, max(0, self.fragment_length - frag_lr.size(1))))[:, :self.fragment_length]
+
+        # Descartar silencios
+        if frag_hr.abs().max() < 1e-4:
+            return self.__getitem__((idx + 1) % len(self))
+
+        # Normalizar a [-1, 1]
+        max_val = max(frag_hr.abs().max(), frag_lr.abs().max()) + 1e-8
+        frag_lr = frag_lr / max_val
+        frag_hr = frag_hr / max_val
+
         stft_lr = self._waveform_to_stft(frag_lr)
         stft_hr = self._waveform_to_stft(frag_hr)
 
