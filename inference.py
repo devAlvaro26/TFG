@@ -362,7 +362,10 @@ def inference(args):
         stft_input = normalize_stft(stft_input)  # Log-compresión (igual que en dataset)
         stft_padded, orig_f, orig_t = pad_stft(stft_input, pool_factor=pool_factor)
 
-        chunk_frames = fragment_length // hop_length    # frames equivalentes a FRAGMENT_LENGTH muestras
+        # frames equivalentes a FRAGMENT_LENGTH muestras
+        chunk_frames = fragment_length // hop_length
+        # Asegurar que chunk_frames sea múltiplo del factor de pooling
+        chunk_frames = chunk_frames + (pool_factor - (chunk_frames % pool_factor)) % pool_factor
 
         predicted_stft = process_audio_in_chunks(model, stft_padded, orig_f, orig_t, chunk_frames=chunk_frames)
         predicted_stft = predicted_stft[:, :orig_f, :orig_t]
