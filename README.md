@@ -9,7 +9,7 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 * **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar el canal real e imaginario, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
 * **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
 * **Arquitectura GAN**: El proyecto utiliza una arquitectura GAN inspirada en HiFi-GAN y AERO, mediante discriminadores MPD y MSD.
-* **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas L1, MR-STFT y GAN.
+* **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas temporales y espectrales (L1, MR-STFT) para el generador, y de sistema adversario (LSGAN, Feature Matching, Mel-Spectrogram) usando el discriminador HiFi-GAN.
 * **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
@@ -89,7 +89,7 @@ Para entrenar el modelo, es necesario un dataset de pares de archivos de audio d
     python train.py
     ```
 
-El script entrenará el modelo y guardará el mejor checkpoint en `unet2D_superres.pt` basado en la pérdida de validación. Utiliza un sistema de *Early Stopping* si la pérdida no mejora durante varias épocas.
+El script entrenará el modelo y guardará el mejor checkpoint en `unet2D_superres_best.pt` y el de la última época en `unet2D_superres.pt` basado en la pérdida de validación. Utiliza un sistema de *Early Stopping* si la pérdida no mejora durante varias épocas.
 
 Para visualizar las curvas de entrenamiento y validación, se puede utilizar TensorBoard:
 

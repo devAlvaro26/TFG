@@ -318,7 +318,7 @@ def inference(args):
     print(f"Cargando modelo desde {args.model}...")
     model = UNetAudio2D().to(device)
     try:
-        model.load_state_dict(torch.load(args.model, map_location=device, weights_only=False))
+        model.load_state_dict(torch.load(args.model, map_location=device, weights_only=True))   # weights_only=False para compatibilidad con DirectML
     except FileNotFoundError:
         print(f"Error: No se encontró el archivo del modelo '{args.model}'.")
         return

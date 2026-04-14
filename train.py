@@ -2,6 +2,7 @@
 # Este script guardara el mejor modelo en un archivo .pt
 
 import os
+import copy
 import argparse
 import torch
 import torch.optim as optim
@@ -19,7 +20,7 @@ VAL_LR_DIR = './data/dataset/test/LR'       # Archivos de baja resolución para 
 BATCH_SIZE = 4                              # Tamaño de lote
 EPOCHS = 500                                # Épocas
 LEARNING_RATE_G = 2e-4                      # LR del generador
-LEARNING_RATE_D = 1e-4                      # LR del discriminador
+LEARNING_RATE_D = 0.5e-4                    # LR del discriminador
 
 def get_device(force_device=None):
     """Elige el dispositivo donde se ejecutará el entrenamiento."""
@@ -49,6 +50,7 @@ def parse_args():
     parser.add_argument('--lr-g', type=float, default=LEARNING_RATE_G, help='Learning rate del generador')
     parser.add_argument('--lr-d', type=float, default=LEARNING_RATE_D, help='Learning rate del discriminador')
     parser.add_argument('--patience', type=int, default=50, help='Épocas sin mejora antes de early stopping')
+    parser.add_argument('--ema-decay', type=float, default=0.999, help='Factor de decaimiento para EMA del generador')
     # Dispositivo
     parser.add_argument('--device', type=str, default=None, choices=['cpu', 'cuda', 'directml'], help='Dispositivo de ejecución (auto-detecta si no se especifica)')
     # Salida
@@ -108,6 +110,12 @@ def train(args):
     # Inicializar Modelos
     model_g = UNetAudio2D().to(device)
     model_d = CombinedDiscriminator().to(device)
+
+    # Inicializar EMA en generador
+    ema_model = copy.deepcopy(model_g)
+    ema_model.eval()
+    for p in ema_model.parameters():
+        p.requires_grad_(False)
 
     # Inicializar Pérdidas
     criterion_g = CombinedLoss(lambda_l1=1.0, lambda_mrstft=1.0).to(device)
@@ -169,12 +177,14 @@ def train(args):
 
             optimizer_g.zero_grad(set_to_none=True)
             
+            # Pérdida de reconstrucción (L1 + MR-STFT)
+            loss_recon = criterion_g(pred, targets, pred_wav, target_wav)
             # Perdidas del generador
             y_d_rs, y_d_gs, fmap_rs, fmap_gs = model_d(target_wav.detach(), pred_wav)
             loss_adv = criterion_d.generator_loss(y_d_gs)
             loss_fm = criterion_d.feature_matching_loss(fmap_rs, fmap_gs)
             loss_mel = criterion_d.mel_spectrogram_loss(pred_wav, target_wav.detach())
-            loss_g = loss_adv + loss_fm + loss_mel
+            loss_g = loss_recon + loss_adv + loss_fm + loss_mel
             
             # Backward
             loss_g.backward()
@@ -185,6 +195,11 @@ def train(args):
             # Actualizar los pesos del modelo
             optimizer_g.step()
 
+            # Actualizar EMA del generador
+            with torch.no_grad():
+                for ema_p, model_p in zip(ema_model.parameters(), model_g.parameters()):
+                    ema_p.data.mul_(args.ema_decay).add_(model_p.data, alpha=1.0 - args.ema_decay)
+
             # Acumular pérdidas
             running_loss_g += loss_g.item()
         
@@ -192,8 +207,8 @@ def train(args):
         train_loss_g = running_loss_g / len(train_dataloader)
         train_loss_d = running_loss_d / len(train_dataloader)
 
-        # Evaluar generador en el conjunto de validación
-        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(model_g, val_dataloader, criterion_g, device)
+        # Evaluar modelo EMA en el conjunto de validación
+        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(ema_model, val_dataloader, criterion_g, device)
 
         print(f"Epoch [{epoch+1}/{args.epochs}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
         print(f"Métricas de calidad: SI-SDR: {val_sisdr:.6f} | STOI: {val_stoi:.6f} | LSD: {val_lsd:.6f}")
@@ -211,11 +226,11 @@ def train(args):
         scheduler_g.step(val_loss)
         scheduler_d.step(train_loss_d)
 
-        # Guardar mejor modelo
+        # Guardar mejor modelo (EMA para inferencia)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             epochs_no_improve = 0
-            torch.save(model_g.state_dict(), args.save_best)
+            torch.save(ema_model.state_dict(), args.save_best)
             print(f"Mejor modelo guardado con loss: {best_val_loss:.6f}")
         else:
             epochs_no_improve += 1
@@ -223,7 +238,7 @@ def train(args):
                 print(f"Early stopping en epoch {epoch+1}")
                 break
         
-        torch.save(model_g.state_dict(), args.save_path)
+        torch.save(ema_model.state_dict(), args.save_path)
 
     writer.close()
     print("Entrenamiento completado")
