@@ -67,6 +67,7 @@ Se puede descargar un modelo ya entrenado y una página donde realizar pruebas d
     ```bash
     pip install torch-directml==0.2.5.dev240914
     ```
+    * Poner weights_only=False en inference.py si hay problemas de compatibilidad.
 4. Opcional: Crear el dataset:
 
     ```bash
