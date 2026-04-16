@@ -20,7 +20,7 @@ VAL_LR_DIR = './data/dataset/test/LR'       # Archivos de baja resolución para 
 BATCH_SIZE = 4                              # Tamaño de lote
 EPOCHS = 500                                # Épocas
 LEARNING_RATE_G = 2e-4                      # LR del generador
-LEARNING_RATE_D = 0.5e-4                    # LR del discriminador
+LEARNING_RATE_D = 1e-4                      # LR del discriminador
 
 def get_device(force_device=None):
     """Elige el dispositivo donde se ejecutará el entrenamiento."""

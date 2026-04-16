@@ -1,8 +1,9 @@
-torch==2.7.1
-torchaudio==2.7.1
-torchvision==0.22.1
+torch==2.4.1
+torchaudio==2.4.1
+torchvision==0.19.1
+torch-directml==0.2.5.dev240914
 torchmetrics==1.9.0
-setuptools==82.0.0
+setuptools==74.0.0
 soundfile==0.13.1
 tensorboard==2.20.0
 pystoi==0.4.1

@@ -65,7 +65,7 @@ Se puede descargar un modelo ya entrenado y una página donde realizar pruebas d
 3. Opcional: Instalar torch-directml para GPU de AMD:
 
     ```bash
-    pip install torch-directml==0.2.5.dev240914
+    pip install -r requirements_directml.txt
     ```
     * Poner weights_only=False en inference.py si hay problemas de compatibilidad.
 4. Opcional: Crear el dataset:
