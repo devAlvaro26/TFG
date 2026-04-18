@@ -111,16 +111,16 @@ class UNetAudio2D(nn.Module):
         # Encoder
         # Entrada: (B, 2, F, T)
         self.enc1 = ResBlock(2, 32)
-        self.pool1 = nn.MaxPool2d((2,2))
+        self.down1 = nn.Conv2d(32, 32, kernel_size=(4,4), stride=(2,2), padding=(1,1))  # Strided conv
 
         self.enc2 = ResBlock(32, 64)
-        self.pool2 = nn.MaxPool2d((2,2))
+        self.down2 = nn.Conv2d(64, 64, kernel_size=(4,4), stride=(2,2), padding=(1,1))
 
         self.enc3 = ResBlock(64, 128)
-        self.pool3 = nn.MaxPool2d((2,2))
+        self.down3 = nn.Conv2d(128, 128, kernel_size=(4,4), stride=(2,2), padding=(1,1))
 
         self.enc4 = ResBlock(128, 256)
-        self.pool4 = nn.MaxPool2d((2,2))
+        self.down4 = nn.Conv2d(256, 256, kernel_size=(4,4), stride=(2,2), padding=(1,1))
 
         # Bottleneck
         self.bottleneck_conv = ResBlock(256, 512)
@@ -150,7 +150,7 @@ class UNetAudio2D(nn.Module):
 
     def up_block(self, in_ch, out_ch):
         """
-        Crea un bloque de upsampling con PixelShuffle.
+        Crea un bloque de upsampling con ConvTranspose2d.
         Args:
             in_ch (int): Número de canales de entrada.
             out_ch (int): Número de canales de salida.
@@ -158,20 +158,19 @@ class UNetAudio2D(nn.Module):
             nn.Sequential: Bloque de upsampling en frecuencia y tiempo.
         """
         return nn.Sequential(
-            nn.Conv2d(in_ch, out_ch * 4, kernel_size=3, padding=1),
-            nn.PixelShuffle(2),  # sub-pixel upsampling
+            nn.ConvTranspose2d(in_ch, out_ch, kernel_size=(4,4), stride=(2,2), padding=(1,1)),
             nn.LeakyReLU(0.2, inplace=True)
         )
 
     def forward(self, x):
         # Encoder
         e1 = self.enc1(x)
-        e2 = self.enc2(self.pool1(e1))
-        e3 = self.enc3(self.pool2(e2))
-        e4 = self.enc4(self.pool3(e3))
+        e2 = self.enc2(self.down1(e1))
+        e3 = self.enc3(self.down2(e2))
+        e4 = self.enc4(self.down3(e3))
 
         # Bottleneck
-        b = self.bottleneck_conv(self.pool4(e4))
+        b = self.bottleneck_conv(self.down4(e4))
         b = self.bottleneck_dilated(b)
 
         # Decoder con skip connections y attention gates

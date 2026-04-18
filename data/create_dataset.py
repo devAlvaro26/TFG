@@ -19,8 +19,8 @@ if not os.path.exists("data/dataset"):
     with zipfile.ZipFile(extract_file, 'r') as zip_ref:
         zip_ref.extractall(os.path.splitext(extract_file)[0])
 
-    print("ZIP descomprimido en:", os.path.splitext(extract_file)[0])
     os.remove(extract_file)
+    print("ZIP descomprimido en:", os.path.splitext(extract_file)[0])
 
 else:
     print("El dataset ya existe")

@@ -226,7 +226,7 @@ def train(args):
         scheduler_g.step(val_loss)
         scheduler_d.step(train_loss_d)
 
-        # Guardar mejor modelo (EMA para inferencia)
+        # Guardar mejor modelo
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             epochs_no_improve = 0
