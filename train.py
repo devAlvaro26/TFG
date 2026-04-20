@@ -2,12 +2,12 @@
 # Este script guardara el mejor modelo en un archivo .pt
 
 import os
-import copy
 import argparse
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from copy import deepcopy
 from src.model import UNetAudio2D
 from src.dataset import AudioSuperResDataset
 from src.discriminator import CombinedDiscriminator
@@ -17,7 +17,7 @@ TRAIN_HR_DIR = './data/dataset/train/HR'    # Archivos de alta resolución (grou
 TRAIN_LR_DIR = './data/dataset/train/LR'    # Archivos de baja resolución (input)
 VAL_HR_DIR = './data/dataset/test/HR'       # Archivos de alta resolución para validación
 VAL_LR_DIR = './data/dataset/test/LR'       # Archivos de baja resolución para validación
-BATCH_SIZE = 4                              # Tamaño de lote
+BATCH_SIZE = 1                              # Tamaño de lote
 EPOCHS = 500                                # Épocas
 LEARNING_RATE_G = 2e-4                      # LR del generador
 LEARNING_RATE_D = 1e-4                      # LR del discriminador
@@ -60,11 +60,11 @@ def parse_args():
     return parser.parse_args()
 
 def evaluate(model_g, dataloader, criterion, device):
-    """Evalúa el modelo en el conjunto de validación y devuelve la pérdida promedio, SI-SDR, STOI y LSD."""
+    """Evalúa el modelo en el conjunto de validación y devuelve la pérdida promedio, SI-SDR, PESQ y LSD."""
     model_g.eval()
     total_loss = 0.0
     total_sisdr = 0.0
-    total_stoi = 0.0
+    total_pesq = 0.0
     total_lsd = 0.0
     with torch.no_grad():
         # Validar el modelo sin gradientes
@@ -75,9 +75,9 @@ def evaluate(model_g, dataloader, criterion, device):
             total_loss += loss.item()
             pred_wav, target_wav = criterion.get_waveforms(outputs, targets) # Obtener waveforms
             total_sisdr += LossMetrics.sisdr_loss(pred_wav, target_wav) # SI-SDR
-            total_stoi += LossMetrics.stoi_loss(pred_wav, target_wav) # STOI
+            total_pesq += LossMetrics.pesq_loss(pred_wav, target_wav) # PESQ
             total_lsd += LossMetrics.lsd_loss(pred_wav, target_wav) # LSD
-    return total_loss / len(dataloader), total_sisdr / len(dataloader), total_stoi / len(dataloader), total_lsd / len(dataloader)
+    return total_loss / len(dataloader), total_sisdr / len(dataloader), total_pesq / len(dataloader), total_lsd / len(dataloader)
 
 def train(args):
     """Entrenar el modelo"""
@@ -112,7 +112,7 @@ def train(args):
     model_d = CombinedDiscriminator().to(device)
 
     # Inicializar EMA en generador
-    ema_model = copy.deepcopy(model_g)
+    ema_model = deepcopy(model_g)
     ema_model.eval()
     for p in ema_model.parameters():
         p.requires_grad_(False)
@@ -208,16 +208,16 @@ def train(args):
         train_loss_d = running_loss_d / len(train_dataloader)
 
         # Evaluar modelo EMA en el conjunto de validación
-        val_loss, val_sisdr, val_stoi, val_lsd = evaluate(ema_model, val_dataloader, criterion_g, device)
+        val_loss, val_sisdr, val_pesq, val_lsd = evaluate(ema_model, val_dataloader, criterion_g, device)
 
         print(f"Epoch [{epoch+1}/{args.epochs}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
-        print(f"Métricas de calidad: SI-SDR: {val_sisdr:.6f} | STOI: {val_stoi:.6f} | LSD: {val_lsd:.6f}")
+        print(f"Métricas de calidad: SI-SDR: {val_sisdr:.6f} | PESQ: {val_pesq:.6f} | LSD: {val_lsd:.6f}")
 
         # Registrar métricas en TensorBoard
         writer.add_scalars('Loss/train', {'generator': train_loss_g, 'discriminator': train_loss_d}, epoch)
         writer.add_scalar('Loss/val', val_loss, epoch)
         writer.add_scalar('Metrics/SI-SDR', val_sisdr, epoch)
-        writer.add_scalar('Metrics/STOI', val_stoi, epoch)
+        writer.add_scalar('Metrics/PESQ', val_pesq, epoch)
         writer.add_scalar('Metrics/LSD', val_lsd, epoch)
         writer.add_scalar('LearningRate/generator', optimizer_g.param_groups[0]['lr'], epoch)
         writer.add_scalar('LearningRate/discriminator', optimizer_d.param_groups[0]['lr'], epoch)

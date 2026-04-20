@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchaudio.transforms import MelSpectrogram
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
-from torchmetrics.audio.stoi import ShortTimeObjectiveIntelligibility
+from torch_pesq import PesqLoss
 
 NFFT = 1024
 HOP_LENGTH = 256
@@ -363,17 +363,17 @@ class LossMetrics(nn.Module):
         return sisdr(pred_wav, target_wav)
     
     @staticmethod
-    def stoi_loss(pred_wav, target_wav):
-        """Pérdida STOI."""
+    def pesq_loss(pred_wav, target_wav):
+        """Pérdida PESQ."""
         if pred_wav.ndim == 3 and pred_wav.size(1) == 1:
             pred_wav = pred_wav.squeeze(1)
             target_wav = target_wav.squeeze(1)
-        stoi = ShortTimeObjectiveIntelligibility(SAMPLE_RATE).to(pred_wav.device)
-        return stoi(pred_wav, target_wav)
+        pesq = PesqLoss(0.5, sample_rate=SAMPLE_RATE)
+        return pesq.mos(target_wav.cpu(), pred_wav.cpu()).mean().item()
 
     @staticmethod
     def lsd_loss(pred_wav, target_wav, n_fft=NFFT, hop_length=HOP_LENGTH, eps=1e-8):
-        """Pérdida LSD"""
+        """Pérdida LSD."""
         device = pred_wav.device
         if device.type in ['privateuseone', 'dml']:
             # Workaround para DirectML
