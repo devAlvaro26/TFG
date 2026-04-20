@@ -9,7 +9,7 @@ Este proyecto implementa un modelo de Deep Learning basado en una arquitectura U
 * **Arquitectura Attention Res-UNet 2D**: Aplicada mediante procesamiento Complex as Channels (CaC) para separar el canal real e imaginario, se implementan `Attention Gates` y `Residual Blocks` sobre la U-Net para mejorar la calidad de la reconstrucción.
 * **Superresolución**: Escala el audio desde frecuencias de muestreo más bajas a un objetivo de 44.1kHz.
 * **Arquitectura GAN**: El proyecto utiliza una arquitectura GAN inspirada en HiFi-GAN y AERO, mediante discriminadores MPD y MSD.
-* **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas temporales y espectrales (L1, MR-STFT) para el generador, y de sistema adversario (LSGAN, Feature Matching, Mel-Spectrogram) usando el discriminador HiFi-GAN.
+* **Métrica de Pérdida**: El entrenamiento utiliza una combinación de pérdidas temporales y espectrales (L1, MR-STFT) para el generador, y de sistema adversario (LSGAN, Feature Matching, Mel-Spectrogram) usando el discriminador HiFi-GAN. Además, se monitorizan métricas de calidad perceptual como SI-SDR, PESQ y LSD.
 * **Inferencia y Visualización**:
     - Genera archivos de audio super-resueltos.
     - Produce gráficos comparativos de forma de onda (Entrada vs. Salida).
@@ -132,14 +132,14 @@ Los cuadernos jupyter son versiones adaptadas para computación en gpu directame
 ## Desarrollado con los siguientes paquetes
 
 *   Python 3.12.10
-*   torch 2.4.1
-*   torchaudio 2.4.1
-*   torchvision 0.19.1
+*   torch 2.7.1
+*   torchaudio 2.7.1
+*   torchvision 0.22.1
 *   torchmetrics 1.9.0
-*   setuptools 74.0.0
+*   setuptools 82.0.0
 *   soundfile 0.13.1
 *   tensorboard 2.20.0
-*   pystoi
+*   torch_pesq
 *   numpy
 *   scipy
 *   gdown
