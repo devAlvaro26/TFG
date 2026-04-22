@@ -138,7 +138,7 @@ class CombinedLoss(nn.Module):
         phase_cos = real / mag_compressed
         phase_sin = imag / mag_compressed
         
-        magnitude = torch.exp(mag_compressed) - 1
+        magnitude = torch.expm1(mag_compressed)
         
         return torch.stack([magnitude * phase_cos, magnitude * phase_sin], dim=1)
 

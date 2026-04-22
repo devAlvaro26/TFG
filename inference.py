@@ -139,7 +139,7 @@ def denormalize_stft(stft):
     mag_compressed = torch.sqrt(real**2 + imag**2 + 1e-8)
     phase_cos = real / mag_compressed
     phase_sin = imag / mag_compressed
-    magnitude = torch.exp(mag_compressed) - 1
+    magnitude = torch.expm1(mag_compressed)
     return torch.stack([magnitude * phase_cos, magnitude * phase_sin], dim=0)
 
 
@@ -247,7 +247,7 @@ def save_spectrogram_plot(lr_waveform, sr_waveform, filename, sample_rate, n_fft
     plt.close()
 
 
-def process_audio_in_chunks(model, stft, orig_f, orig_t, chunk_frames, overlap=32):
+def process_audio_in_chunks(model, stft, orig_f, orig_t, chunk_frames, overlap=64):
     """
     Procesa el STFT por chunks con overlap para evitar artefactos en los bordes.
     Args:
@@ -279,7 +279,8 @@ def process_audio_in_chunks(model, stft, orig_f, orig_t, chunk_frames, overlap=3
         # Pad si el chunk es más corto que chunk_frames
         pad_t = chunk_frames - chunk.shape[-1]
         if pad_t > 0:
-            chunk = torch.nn.functional.pad(chunk, (0, pad_t))
+            pad_mode = 'reflect' if pad_t < chunk.shape[-1] else 'replicate' # En el caso de que sea mayor que 0, se usa replicate (ultimo chunk)
+            chunk = torch.nn.functional.pad(chunk, (0, pad_t), mode=pad_mode)
 
         with torch.no_grad():
             pred_chunk = model(chunk.unsqueeze(0)).squeeze(0)
