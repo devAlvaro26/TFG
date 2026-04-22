@@ -7,10 +7,10 @@ import torchaudio
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
-NFFT = 1024
-HOP_LENGTH = 256
+NFFT = 2048
+HOP_LENGTH = 512
 SAMPLE_RATE = 44100
-FRAGMENT_LENGTH = 65280
+FRAGMENT_LENGTH = 65536
 
 class AudioSuperResDataset(Dataset):
     """

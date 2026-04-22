@@ -7,15 +7,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_pesq import PesqLoss
 from torchaudio.transforms import MelSpectrogram
 from torchmetrics.audio import ScaleInvariantSignalDistortionRatio
-from torch_pesq import PesqLoss
 
-NFFT = 1024
-HOP_LENGTH = 256
-WIN_LENGTH = 1024
+NFFT = 2048
+HOP_LENGTH = 512
+WIN_LENGTH = 2048
 SAMPLE_RATE = 44100
-FRAGMENT_LENGTH = 65280
+FRAGMENT_LENGTH = 65536
 
 class STFTLoss(nn.Module):
     """Pérdida de Magnitud Logarítmica y Convergencia Espectral (STFT)."""

@@ -15,9 +15,9 @@ INF_DIR = './data/inference'        # Archivos de entrada
 OUTPUT_DIR = './results'            # Archivos de salida
 TARGET_SR = 44100                   # Target sample rate
 POOL_FACTOR = 16                    # 2^4 para 4 capas de pooling en UNet 2D
-N_FFT = 1024                        # Tamaño de la FFT para STFT
-HOP_LENGTH = 256                    # Salto entre ventanas STFT
-FRAGMENT_LENGTH = 65280             # Longitud de los fragmentos en muestras
+N_FFT = 2048                        # Tamaño de la FFT para STFT
+HOP_LENGTH = 512                    # Salto entre ventanas STFT
+FRAGMENT_LENGTH = 65536             # Longitud de los fragmentos en muestras
 
 def get_device(force_device=None):
     """Elige el dispositivo donde se ejecutará el entrenamiento."""

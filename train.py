@@ -17,10 +17,10 @@ TRAIN_HR_DIR = './data/dataset/train/HR'    # Archivos de alta resolución (grou
 TRAIN_LR_DIR = './data/dataset/train/LR'    # Archivos de baja resolución (input)
 VAL_HR_DIR = './data/dataset/test/HR'       # Archivos de alta resolución para validación
 VAL_LR_DIR = './data/dataset/test/LR'       # Archivos de baja resolución para validación
-BATCH_SIZE = 1                              # Tamaño de lote
+BATCH_SIZE = 8                              # Tamaño de lote
 EPOCHS = 500                                # Épocas
 LEARNING_RATE_G = 2e-4                      # LR del generador
-LEARNING_RATE_D = 1e-4                      # LR del discriminador
+LEARNING_RATE_D = 0.5e-4                    # LR del discriminador
 
 def get_device(force_device=None):
     """Elige el dispositivo donde se ejecutará el entrenamiento."""
@@ -207,7 +207,7 @@ def train(args):
         train_loss_g = running_loss_g / len(train_dataloader)
         train_loss_d = running_loss_d / len(train_dataloader)
 
-        # Evaluar modelo EMA en el conjunto de validación
+        # Evaluar modelo en el conjunto de validación
         val_loss, val_sisdr, val_pesq, val_lsd = evaluate(ema_model, val_dataloader, criterion_g, device)
 
         print(f"Epoch [{epoch+1}/{args.epochs}] | Loss G: {train_loss_g:.6f} | Loss D: {train_loss_d:.6f} | Val Loss: {val_loss:.6f} | LR: {optimizer_g.param_groups[0]['lr']:.8f}")
