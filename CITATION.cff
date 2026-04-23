@@ -1,0 +1,27 @@
+cff-version: 1.0.0
+message: "If you use this software, please cite it as below."
+title: "Diseño e implementación de un sistema de aprendizaje profundo para la extensión del ancho de banda basado en representaciones STFT"
+type: software
+authors:
+  - family-names: "Roca"
+    given-names: "Álvaro"
+repository-code: "https://github.com/devAlvaro26/TFG"
+url: "https://huggingface.co/spaces/devAlvaro26/AudioSuperRes"
+license: MIT
+date-released: 23-04-2026
+keywords:
+  - audio-super-resolution
+  - bandwidth-extension
+  - generative-adversarial-networks
+  - unet
+  - stft
+  - deep-learning
+  - audio-signal-processing
+abstract: >-
+  A deep learning model based on a 2D Attention Res-UNet architecture
+  that operates on STFT representations to perform audio super-resolution.
+  The system reconstructs high-frequency content from low-resolution audio
+  inputs, upscaling any audio file to a 44.1 kHz sampling rate. Training
+  uses a GAN framework inspired by HiFi-GAN and AERO with MPD/MSD
+  discriminators and a combination of temporal, spectral, and adversarial
+  losses using CaC architecture.
