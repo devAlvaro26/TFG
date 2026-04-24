@@ -59,10 +59,8 @@ class MultiPeriodDiscriminator(torch.nn.Module):
         ])
 
     def forward(self, y, y_hat):
-        y_d_rs = []
-        y_d_gs = []
-        fmap_rs = []
-        fmap_gs = []
+        y_d_rs, y_d_gs, fmap_rs, fmap_gs = [], [], [], []
+
         for i, d in enumerate(self.discriminators):
             y_d_r, fmap_r = d(y)
             y_d_g, fmap_g = d(y_hat)
@@ -115,10 +113,7 @@ class MultiScaleDiscriminator(torch.nn.Module):
         ])
 
     def forward(self, y, y_hat):
-        y_d_rs = []
-        y_d_gs = []
-        fmap_rs = []
-        fmap_gs = []
+        y_d_rs, y_d_gs, fmap_rs, fmap_gs = [], [], [], []
         for i, d in enumerate(self.discriminators):
             if i != 0:
                 y = self.meanpools[i-1](y)
