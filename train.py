@@ -214,13 +214,13 @@ def train(args):
         print(f"Métricas de calidad: SI-SDR: {val_sisdr:.6f} | PESQ: {val_pesq:.6f} | LSD: {val_lsd:.6f}")
 
         # Registrar métricas en TensorBoard
-        writer.add_scalars('Loss/train', {'generator': train_loss_g, 'discriminator': train_loss_d}, epoch)
-        writer.add_scalar('Loss/val', val_loss, epoch)
-        writer.add_scalar('Metrics/SI-SDR', val_sisdr, epoch)
-        writer.add_scalar('Metrics/PESQ', val_pesq, epoch)
-        writer.add_scalar('Metrics/LSD', val_lsd, epoch)
-        writer.add_scalar('LearningRate/generator', optimizer_g.param_groups[0]['lr'], epoch)
-        writer.add_scalar('LearningRate/discriminator', optimizer_d.param_groups[0]['lr'], epoch)
+        writer.add_scalars('Loss/train', {'generator': train_loss_g, 'discriminator': train_loss_d}, epoch+1)
+        writer.add_scalar('Loss/val', val_loss, epoch+1)
+        writer.add_scalar('Metrics/SI-SDR', val_sisdr, epoch+1)
+        writer.add_scalar('Metrics/PESQ', val_pesq, epoch+1)
+        writer.add_scalar('Metrics/LSD', val_lsd, epoch+1)
+        writer.add_scalar('LearningRate/generator', optimizer_g.param_groups[0]['lr'], epoch+1)
+        writer.add_scalar('LearningRate/discriminator', optimizer_d.param_groups[0]['lr'], epoch+1)
 
         # Actualizar schedulers
         scheduler_g.step(val_loss)
