@@ -18,7 +18,7 @@ TRAIN_LR_DIR = './data/dataset/train/LR'    # Archivos de baja resolución (inpu
 VAL_HR_DIR = './data/dataset/test/HR'       # Archivos de alta resolución para validación
 VAL_LR_DIR = './data/dataset/test/LR'       # Archivos de baja resolución para validación
 BATCH_SIZE = 8                              # Tamaño de lote
-EPOCHS = 500                                # Épocas
+EPOCHS = 300                                # Épocas
 LEARNING_RATE_G = 2e-4                      # LR del generador
 LEARNING_RATE_D = 0.5e-4                    # LR del discriminador
 
@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument('--epochs', type=int, default=EPOCHS, help='Número de épocas de entrenamiento')
     parser.add_argument('--lr-g', type=float, default=LEARNING_RATE_G, help='Learning rate del generador')
     parser.add_argument('--lr-d', type=float, default=LEARNING_RATE_D, help='Learning rate del discriminador')
-    parser.add_argument('--patience', type=int, default=50, help='Épocas sin mejora antes de early stopping')
+    parser.add_argument('--patience', type=int, default=30, help='Épocas sin mejora antes de early stopping')
     parser.add_argument('--ema-decay', type=float, default=0.999, help='Factor de decaimiento para EMA del generador')
     # Dispositivo
     parser.add_argument('--device', type=str, default=None, choices=['cpu', 'cuda', 'directml'], help='Dispositivo de ejecución (auto-detecta si no se especifica)')
