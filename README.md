@@ -30,6 +30,7 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 │   ├── inference/          # Archivos .wav para procesar con el modelo
 │   └── create_dataset.py   # Script para crear el dataset
 ├── results/                # Salida de la inferencia (audio + gráficos)
+├── training/               # Resultados de reconstrucción por epocas de la red
 ├── src/
 │   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a pares STFT
 │   ├── model.py            # Definición de UNetAudio2D (Attention Res-UNet 2D)
