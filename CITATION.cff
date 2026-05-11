@@ -1,6 +1,6 @@
 cff-version: 1.0.0
 message: "If you use this software, please cite it as below."
-title: "Diseño e implementación de un sistema de aprendizaje profundo para la extensión del ancho de banda basado en representaciones STFT"
+title: "Super-resolución acústica: Desarrollo de un sistema de IA para la extensión del ancho de banda en señales de audio."
 type: software
 authors:
   - family-names: "Roca"
@@ -8,7 +8,7 @@ authors:
 repository-code: "https://github.com/devAlvaro26/TFG"
 url: "https://huggingface.co/spaces/devAlvaro26/AudioSuperRes"
 license: MIT
-date-released: 23-04-2026
+date-released: 29-04-2026
 keywords:
   - audio-super-resolution
   - bandwidth-extension

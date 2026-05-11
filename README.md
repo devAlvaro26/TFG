@@ -137,11 +137,11 @@ Los cuadernos jupyter son versiones adaptadas para computación en gpu directame
 *   torchaudio 2.7.1
 *   torchvision 0.22.1
 *   torchmetrics 1.9.0
-*   setuptools 82.0.0
+*   setuptools 81.0.0
 *   soundfile 0.13.1
 *   tensorboard 2.20.0
-*   torch_pesq
-*   numpy
-*   scipy
-*   gdown
-*   matplotlib
+*   torch_pesq 1.1.2
+*   numpy 2.4.4
+*   scipy 1.17.1
+*   gdown 5.2.1
+*   matplotlib 3.10.8
