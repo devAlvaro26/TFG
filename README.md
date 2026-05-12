@@ -55,6 +55,8 @@ Se puede descargar un modelo ya entrenado y una página donde realizar pruebas d
 
 * **[Probar inferencia](https://huggingface.co/spaces/devAlvaro26/AudioSuperRes)**
 
+* **[Proceso de entrenamiento](https://huggingface.co/devAlvaro26/Unet2D_SuperRes/resolve/main/training.zip)**
+
 ## Instalación
 
 1. Clonar el repositorio.
