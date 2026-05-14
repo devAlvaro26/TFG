@@ -8,7 +8,7 @@ authors:
 repository-code: "https://github.com/devAlvaro26/TFG"
 url: "https://huggingface.co/spaces/devAlvaro26/AudioSuperRes"
 license: MIT
-date-released: 29-04-2026
+date-released: 01-06-2026
 keywords:
   - audio-super-resolution
   - bandwidth-extension
