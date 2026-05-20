@@ -247,7 +247,7 @@ class CombinedLoss(nn.Module):
 # Pérdidas del discriminador
 class DiscriminatorLoss(nn.Module):
     """Pérdidas del discriminador."""
-    def __init__(self, sample_rate=SAMPLE_RATE, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH, lambda_adv=1.0, lambda_fm=2.0, lambda_mel=45.0, n_mels=80):
+    def __init__(self, sample_rate=SAMPLE_RATE, n_fft=NFFT, hop_length=HOP_LENGTH, win_length=WIN_LENGTH, lambda_adv=1.0, lambda_fm=2.0, lambda_mel=45.0, n_mels=128):
         """
         Inicializa las pérdidas del discriminador.
         Args:

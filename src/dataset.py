@@ -186,7 +186,7 @@ class AudioSuperResDataset(Dataset):
             return self.__getitem__((idx + 1) % len(self))
 
         # Normalizar a [-1, 1]
-        max_val = max(frag_hr.abs().max(), frag_lr.abs().max()) + 1e-8
+        max_val = frag_lr.abs().max() + 1e-8
         frag_lr = frag_lr / max_val
         frag_hr = frag_hr / max_val
 
