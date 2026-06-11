@@ -1,5 +1,11 @@
 # SuperResolución de Audio con Attention Res-UNet 2D
 
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
+[![PyTorch 2.7](https://img.shields.io/badge/PyTorch-2.7-EE4C2C.svg?style=flat&logo=pytorch)](https://pytorch.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Hugging Face Model](https://img.shields.io/badge/%F0%9F%A4%97%20Model-Unet2D__SuperRes-ffcc00.svg)](https://huggingface.co/devAlvaro26/Unet2D_SuperRes)
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Space-AudioSuperRes-ffcc00.svg)](https://huggingface.co/spaces/devAlvaro26/AudioSuperRes)
+
 Este proyecto implementa un modelo de Deep Learning basado en una arquitectura UNet 2D que opera sobre representaciones STFT para realizar Superresolución de Audio. El objetivo es reconstruir el contenido de alta frecuencia a partir de entradas de audio de baja resolución, mejorando cualquier archivo de audio de baja resolución a una frecuencia de muestreo de 44.1kHz.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/devAlvaro26/TFG)
