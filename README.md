@@ -36,6 +36,7 @@ El modelo entrenado se ha realizado con el dataset **[MUSDB18-HQ](https://zenodo
 │   ├── inference/          # Archivos .wav para procesar con el modelo
 │   └── create_dataset.py   # Script para crear el dataset
 ├── results/                # Salida de la inferencia (audio + gráficos)
+│   └── MUSHRA/             # Resultados de tests subjetivos MUSHRA
 ├── training/               # Resultados de reconstrucción por epocas de la red
 ├── src/
 │   ├── dataset.py          # Clase Dataset: Carga audio y lo convierte a pares STFT
@@ -129,6 +130,12 @@ Para probar el modelo en nuevos archivos de audio:
 Los cuadernos jupyter son versiones adaptadas para computación en gpu directamente en jupyter notebook:
 * `train.ipynb`: Entrenamiento del modelo.
 * `inference.ipynb`: Inferencia del modelo.
+
+## Resultados MUSHRA
+
+Se han realizado pruebas subjetivas MUSHRA (MUltiple Stimuli with Hidden Reference and Anchor) para evaluar la calidad perceptual del modelo en comparación con otros métodos de superresolución (Aero, Audiosr, Flashsr). El modelo ("Mine") ha demostrado resultados competitivos. Los resultados completos y estadísticos se encuentran en la carpeta `results/MUSHRA/`.
+
+![Resultados MUSHRA](./results/MUSHRA/mushra_test.png)
 
 ## Papers y proyectos de referencia
 
